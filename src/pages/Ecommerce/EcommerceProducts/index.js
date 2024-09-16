@@ -1,326 +1,359 @@
 import React, { useEffect, useState, useMemo } from "react";
-
 import {
   Container,
   UncontrolledDropdown,
   DropdownToggle,
   DropdownItem,
   DropdownMenu,
-  Nav,
-  NavItem,
-  NavLink,
-  UncontrolledCollapse,
   Row,
   Card,
   CardHeader,
   Col,
+  Label,
+  Input,
 } from "reactstrap";
-import classnames from "classnames";
-
-// RangeSlider
 import Nouislider from "nouislider-react";
 import "nouislider/distribute/nouislider.css";
 import DeleteModal from "../../../Components/Common/DeleteModal";
-
 import BreadCrumb from "../../../Components/Common/BreadCrumb";
 import TableContainer from "../../../Components/Common/TableContainer";
-import { Rating, Published, Price } from "./EcommerceProductCol";
-//Import data
-import { productsData } from "../../../common/data";
-
-//Import actions
-import { getProducts as onGetProducts, deleteProducts } from "../../../slices/thunks";
-import { isEmpty } from "lodash";
-import Select from "react-select";
-
-//redux
-import { useSelector, useDispatch } from "react-redux";
 import { Link } from "react-router-dom";
+import db from "../../../appwrite/Services/dbServices";
+import storageServices from "../../../appwrite/Services/storageServices";
 import { toast, ToastContainer } from "react-toastify";
-import { createSelector } from "reselect";
+import "react-toastify/dist/ReactToastify.css";
 
-const SingleOptions = [
-  { value: 'Watches', label: 'Watches' },
-  { value: 'Headset', label: 'Headset' },
-  { value: 'Sweatshirt', label: 'Sweatshirt' },
-  { value: '20% off', label: '20% off' },
-  { value: '4 star', label: '4 star' },
-];
-
-const EcommerceProducts = (props) => {
-  const dispatch = useDispatch();
-
-  const selectecomproductData = createSelector(
-    (state) => state.Ecommerce,
-    (products) => products.products
-  );
-// Inside your component
-const products = useSelector(selectecomproductData);
-
+const EcommerceProducts = () => {
+  // State variables
   const [productList, setProductList] = useState([]);
-  const [activeTab, setActiveTab] = useState("1");
-  const [selectedMulti, setselectedMulti] = useState(null);
-  const [product, setProduct] = useState(null);
-
-  function handleMulti(selectedMulti) {
-    setselectedMulti(selectedMulti);
-  }
-
-  useEffect(() => {
-    if (products && !products.length) {
-      dispatch(onGetProducts());
-    }
-  }, [dispatch, products]);
-
-  useEffect(() => {
-    setProductList(products);
-  }, [products]);
-
-  useEffect(() => {
-    if (!isEmpty(products)) setProductList(products);
-  }, [products]);
-
-  const toggleTab = (tab, type) => {
-    if (activeTab !== tab) {
-      setActiveTab(tab);
-      let filteredProducts = products;
-      if (type !== "all") {
-        filteredProducts = products.filter((product) => product.status === type);
-      }
-      setProductList(filteredProducts);
-    }
-  };
-
-  const [cate, setCate] = useState("all");
-
-  const categories = (category) => {
-    let filteredProducts = products;
-    if (category !== "all") {
-      filteredProducts = products.filter((product) => product.category === category);
-    }
-    setProductList(filteredProducts);
-    setCate(category);
-  };
-
-  useEffect(() => {
-    onUpdate([0, 2000]);
-  }, []);
-
-  const onUpdate = (value) => {
-    setProductList(
-      productsData.filter(
-        (product) => product.price >= value[0] && product.price <= value[1],
-        document.getElementById("minCost").value = value[0],
-        document.getElementById("maxCost").value = value[1],
-      )
-    );
-  };
-
-  const [ratingvalues, setRatingvalues] = useState([]);
-  /*
-  on change rating checkbox method
-  */
-  const onChangeRating = value => {
-    setProductList(productsData.filter(product => product.rating >= value));
-
-    var modifiedRating = [...ratingvalues];
-    modifiedRating.push(value);
-    setRatingvalues(modifiedRating);
-  };
-
-  const onUncheckMark = (value) => {
-    var modifiedRating = [...ratingvalues];
-    const modifiedData = (modifiedRating || []).filter(x => x !== value);
-    /*
-    find min values
-    */
-    var filteredProducts = productsData;
-    if (modifiedData && modifiedData.length && value !== 1) {
-      var minValue = Math.min(...modifiedData);
-      if (minValue && minValue !== Infinity) {
-        filteredProducts = productsData.filter(
-          product => product.rating >= minValue
-        );
-        setRatingvalues(modifiedData);
-      }
-    } else {
-      filteredProducts = productsData;
-    }
-    setProductList(filteredProducts);
-  };
-
-  //delete order
+  const [filteredProductList, setFilteredProductList] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [priceRange, setPriceRange] = useState({ min: 0, max: 1000 });
+  const [priceSliderRange, setPriceSliderRange] = useState({ min: 0, max: 1000 });
+  const [isWholesaleFilter, setIsWholesaleFilter] = useState(false);
+  const [isOnSaleFilter, setIsOnSaleFilter] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleteModalMulti, setDeleteModalMulti] = useState(false);
+  const [productToDelete, setProductToDelete] = useState(null);
+  const [dele, setDele] = useState(0);
 
+  useEffect(() => {
+    // Fetch products and categories from Appwrite
+    const fetchData = async () => {
+      try {
+        const [productResponse, categoryResponse] = await Promise.all([
+          db.Products.list(),
+          db.Categories.list(),
+        ]);
+
+        // Map and parse the product data
+        const products = productResponse.documents.map((product) => ({
+          ...product,
+          price: parseFloat(product.price),
+          isOnSale: Boolean(product.isOnSale),
+          isWholesaleProduct: Boolean(product.isWholesaleProduct),
+        }));
+        const categories = categoryResponse.documents;
+
+        setProductList(products);
+        setCategories(categories);
+
+        // Compute min and max prices
+        const prices = products.map((product) => product.price);
+        let minPrice = Math.min(...prices);
+        let maxPrice = Math.max(...prices);
+
+        // Handle cases when min and max prices are equal or invalid
+        if (!isFinite(minPrice) || !isFinite(maxPrice)) {
+          minPrice = 0;
+          maxPrice = 1000;
+        } else if (minPrice === maxPrice) {
+          // Adjust maxPrice to be greater than minPrice
+          maxPrice = minPrice + 100;
+        }
+
+        setPriceRange({ min: minPrice, max: maxPrice });
+        setPriceSliderRange({ min: minPrice, max: maxPrice });
+
+        // Initialize minCost and maxCost inputs
+        document.getElementById("minCost").value = minPrice;
+        document.getElementById("maxCost").value = maxPrice;
+      } catch (error) {
+        console.error("Failed to fetch data:", error);
+        toast.error("Failed to fetch data");
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Filter products whenever filters change
+  useEffect(() => {
+    filterProducts();
+  }, [productList, categoryFilter, priceRange, isWholesaleFilter, isOnSaleFilter]);
+
+  // Function to get category name from ID
+  const getCategoryName = (categoryId) => {
+    const category = categories.find((cat) => cat.$id === categoryId);
+    return category ? category.name : "Unknown";
+  };
+
+  // Function to get image URL
+  const getImageURL = (imageId) => {
+    return storageServices.images.getFilePreview(imageId);
+  };
+
+  // Function to filter products based on active filters
+  const filterProducts = () => {
+    let filtered = productList;
+
+    // Category filter
+    if (categoryFilter !== "all") {
+      filtered = filtered.filter((product) => product.categoryId === categoryFilter);
+    }
+
+    // Price range filter
+    filtered = filtered.filter(
+      (product) => product.price >= priceRange.min && product.price <= priceRange.max
+    );
+
+    // Wholesale filter
+    if (isWholesaleFilter) {
+      filtered = filtered.filter((product) => product.isWholesaleProduct === true);
+    }
+
+    // On Sale filter
+    if (isOnSaleFilter) {
+      filtered = filtered.filter((product) => product.isOnSale === true);
+    }
+
+    setFilteredProductList(filtered);
+  };
+
+  // Function to handle category filter change
+  const categoriesFilter = (categoryId) => {
+    setCategoryFilter(categoryId);
+  };
+
+  // Function to handle price range slider update
+  const onUpdate = (values) => {
+    const minCost = parseFloat(values[0]);
+    const maxCost = parseFloat(values[1]);
+
+    document.getElementById("minCost").value = minCost;
+    document.getElementById("maxCost").value = maxCost;
+
+    setPriceRange({ min: minCost, max: maxCost });
+  };
+
+  // Function to handle deletion of a single product
   const onClickDelete = (product) => {
-    setProduct(product);
+    setProductToDelete(product);
     setDeleteModal(true);
   };
 
-  const handleDeleteProduct = () => {
-    if (product) {
-      dispatch(deleteProducts(product._id));
-      setDeleteModal(false);
+  const handleDeleteProduct = async () => {
+    if (productToDelete) {
+      try {
+        // Delete associated images from the storage bucket
+        if (productToDelete.images && productToDelete.images.length > 0) {
+          await Promise.all(
+            productToDelete.images.map(async (imageId) => {
+              await storageServices.images.deleteFile(imageId);
+            })
+          );
+        }
+
+        // Delete the product document
+        await db.Products.delete(productToDelete.$id);
+        setDeleteModal(false);
+
+        // Remove the deleted product from the state
+        setProductList(productList.filter((p) => p.$id !== productToDelete.$id));
+
+        toast.success("Product deleted successfully");
+      } catch (error) {
+        console.error("Failed to delete product:", error);
+        toast.error("Failed to delete product");
+      }
     }
   };
 
-
-  const [dele, setDele] = useState(0);
-
-  // Displat Delete Button
+  // Function to handle display of the bulk delete option
   const displayDelete = () => {
     const ele = document.querySelectorAll(".productCheckBox:checked");
     const del = document.getElementById("selection-element");
     setDele(ele.length);
     if (ele.length === 0) {
-      del.style.display = 'none';
+      del.style.display = "none";
     } else {
-      del.style.display = 'block';
+      del.style.display = "block";
     }
   };
 
-  // Delete Multiple
-  const deleteMultiple = () => {
+  // Function to handle deletion of multiple products
+  const deleteMultiple = async () => {
     const ele = document.querySelectorAll(".productCheckBox:checked");
     const del = document.getElementById("selection-element");
-    ele.forEach((element) => {
-      dispatch(deleteProducts(element.value));
-      setTimeout(() => { toast.clearWaitingQueue(); }, 3000);
-      del.style.display = 'none';
-    });
+    try {
+      await Promise.all(
+        Array.from(ele).map(async (element) => {
+          const productId = element.value;
+          const product = productList.find((p) => p.$id === productId);
+
+          // Delete associated images
+          if (product && product.images && product.images.length > 0) {
+            await Promise.all(
+              product.images.map(async (imageId) => {
+                await storageServices.images.deleteFile(imageId);
+              })
+            );
+          }
+
+          // Delete the product
+          await db.Products.delete(productId);
+        })
+      );
+      // Remove the deleted products from the state
+      const deletedIds = Array.from(ele).map((element) => element.value);
+      setProductList(productList.filter((p) => !deletedIds.includes(p.$id)));
+      del.style.display = "none";
+      setDele(0);
+      setDeleteModalMulti(false);
+
+      toast.success("Selected products deleted successfully");
+    } catch (error) {
+      console.error("Failed to delete products:", error);
+      toast.error("Failed to delete selected products");
+    }
   };
 
-  const columns = useMemo(() => [
-    {
-      header: "#",
-      accessorKey: "id",
-      enableColumnFilter: false,
-      enableSorting: false,
-      cell: (cell) => {
-        return <input type="checkbox" className="productCheckBox form-check-input" value={cell.getValue()} onClick={() => displayDelete()} />;
+  // Table columns
+  const columns = useMemo(
+    () => [
+      {
+        header: "#",
+        accessorKey: "$id",
+        enableColumnFilter: false,
+        enableSorting: false,
+        cell: (cell) => {
+          return (
+            <input
+              type="checkbox"
+              className="productCheckBox form-check-input"
+              value={cell.getValue()}
+              onClick={() => displayDelete()}
+            />
+          );
+        },
       },
-    },
-    {
-      header: "Product",
-      accessorKey: "name",
-      enableColumnFilter: false,
-      cell: (cell) => (
-        <>
-          <div className="d-flex align-items-center">
-            <div className="flex-shrink-0 me-3">
-              <div className="avatar-sm bg-light rounded p-1">
-                <img
-                 src = {process.env.REACT_APP_API_URL + "/images/products/" + cell.row.original.image}
-                  alt=""
-                  className="img-fluid d-block"
-                />
+      {
+        header: "Product",
+        accessorKey: "name",
+        enableColumnFilter: false,
+        cell: (cell) => (
+          <>
+            <div className="d-flex align-items-center">
+              <div className="flex-shrink-0 me-3">
+                <div className="avatar-sm bg-light rounded p-1">
+                  {cell.row.original.images && cell.row.original.images.length > 0 ? (
+                    <img
+                      src={getImageURL(cell.row.original.images[0])}
+                      alt=""
+                      className="img-fluid d-block"
+                    />
+                  ) : (
+                    <img
+                      src="/path/to/default-image.jpg" // Provide a default image path
+                      alt=""
+                      className="img-fluid d-block"
+                    />
+                  )}
+                </div>
+              </div>
+              <div className="flex-grow-1">
+                <h5 className="fs-14 mb-1">
+                  <Link
+                    to={`/apps-ecommerce-product-details/${cell.row.original.$id}`}
+                    className="text-body"
+                  >
+                    {cell.getValue()}
+                  </Link>
+                </h5>
+                <p className="text-muted mb-0">
+                  Category :{" "}
+                  <span className="fw-medium">
+                    {getCategoryName(cell.row.original.categoryId)}
+                  </span>
+                </p>
               </div>
             </div>
-            <div className="flex-grow-1">
-              <h5 className="fs-14 mb-1">
-                <Link
-                  to="/apps-ecommerce-product-details"
-                  className="text-body"
-                >
-                  {" "}
-                  {cell.getValue()}
-                </Link>
-              </h5>
-              <p className="text-muted mb-0">
-                Category :{" "}
-                <span className="fw-medium">
-                  {" "}
-                  {cell.row.original.category}
-                </span>
-              </p>
-            </div>
-          </div>
-        </>
-      ),
-    },
-    {
-      header: "Stock",
-      accessorKey: "stock",
-      enableColumnFilter: false,
-    },
-    {
-      header: "Price",
-      accessorKey: "price",
-      enableColumnFilter: false,
-      cell: (cell) => {
-        return <Price {...cell} />;
+          </>
+        ),
       },
-    },
-    {
-      header: "Orders",
-      accessorKey: "orders",
-      enableColumnFilter: false,
-    },
-    {
-      header: "Rating",
-      accessorKey: "rating",
-      enableColumnFilter: false,
-      cell: (cell) => {
-        return <Rating {...cell} />;
+      {
+        header: "Stock",
+        accessorKey: "stockQuantity",
+        enableColumnFilter: false,
       },
-    },
-    {
-      header: "Published",
-      accessorKey: "publishedDate",
-      enableColumnFilter: false,
-      cell: (cell) => {
-        return <Published {...cell} />;
+      {
+        header: "Price",
+        accessorKey: "price",
+        enableColumnFilter: false,
+        cell: (cell) => {
+          return <>${cell.getValue()}</>;
+        },
       },
-    },
-    {
-      header: "Action",
-      cell: (cell) => {
-        return (
-          <UncontrolledDropdown>
-            <DropdownToggle
-              href="#"
-              className="btn btn-soft-secondary btn-sm"
-              tag="button"
-            >
-              <i className="ri-more-fill" />
-            </DropdownToggle>
-            <DropdownMenu className="dropdown-menu-end">
-              <DropdownItem href="apps-ecommerce-product-details">
-                <i className="ri-eye-fill align-bottom me-2 text-muted"></i>{" "}
-                View
-              </DropdownItem>
-
-              <DropdownItem href="apps-ecommerce-add-product">
-                <i className="ri-pencil-fill align-bottom me-2 text-muted"></i>{" "}
-                Edit
-              </DropdownItem>
-
-              <DropdownItem divider />
-              <DropdownItem
+      {
+        header: "Action",
+        cell: (cell) => {
+          return (
+            <UncontrolledDropdown>
+              <DropdownToggle
                 href="#"
-                onClick={() => {
-                  const productData = cell.row.original;
-                  onClickDelete(productData);
-                }}
+                className="btn btn-soft-secondary btn-sm"
+                tag="button"
               >
-                <i className="ri-delete-bin-fill align-bottom me-2 text-muted"></i>{" "}
-                Delete
-              </DropdownItem>
-            </DropdownMenu>
-          </UncontrolledDropdown>
-        );
+                <i className="ri-more-fill" />
+              </DropdownToggle>
+              <DropdownMenu className="dropdown-menu-end">
+                <DropdownItem
+                  href={`/apps-ecommerce-product-details/${cell.row.original.$id}`}
+                >
+                  <i className="ri-eye-fill align-bottom me-2 text-muted"></i>{" "}
+                  View
+                </DropdownItem>
+
+                <DropdownItem
+                  href={`/apps-ecommerce-edit-product/${cell.row.original.$id}`}
+                >
+                  <i className="ri-pencil-fill align-bottom me-2 text-muted"></i>{" "}
+                  Edit
+                </DropdownItem>
+
+                <DropdownItem divider />
+                <DropdownItem
+                  href="#"
+                  onClick={() => {
+                    const productData = cell.row.original;
+                    onClickDelete(productData);
+                  }}
+                >
+                  <i className="ri-delete-bin-fill align-bottom me-2 text-muted"></i>{" "}
+                  Delete
+                </DropdownItem>
+              </DropdownMenu>
+            </UncontrolledDropdown>
+          );
+        },
       },
-    },
-  ],
-    []
+    ],
+    [categories]
   );
-  document.title = "Products | Velzon - React Admin & Dashboard Template";
 
   return (
     <div className="page-content">
       <ToastContainer closeButton={false} limit={1} />
-
       <DeleteModal
         show={deleteModal}
         onDeleteClick={handleDeleteProduct}
@@ -328,10 +361,7 @@ const products = useSelector(selectecomproductData);
       />
       <DeleteModal
         show={deleteModalMulti}
-        onDeleteClick={() => {
-          deleteMultiple();
-          setDeleteModalMulti(false);
-        }}
+        onDeleteClick={deleteMultiple}
         onCloseClick={() => setDeleteModalMulti(false)}
       />
       <Container fluid>
@@ -340,488 +370,158 @@ const products = useSelector(selectecomproductData);
         <Row>
           <Col xl={3} lg={4}>
             <Card>
-              <CardHeader >
+              <CardHeader>
                 <div className="d-flex mb-3">
                   <div className="flex-grow-1">
                     <h5 className="fs-16">Filters</h5>
                   </div>
                   <div className="flex-shrink-0">
-                    <Link to="#" className="text-decoration-underline">
+                    <Link
+                      to="#"
+                      className="text-decoration-underline"
+                      onClick={() => {
+                        setCategoryFilter("all");
+                        setPriceRange({
+                          min: priceSliderRange.min,
+                          max: priceSliderRange.max,
+                        });
+                        setIsWholesaleFilter(false);
+                        setIsOnSaleFilter(false);
+                        document.getElementById("minCost").value =
+                          priceSliderRange.min;
+                        document.getElementById("maxCost").value =
+                          priceSliderRange.max;
+                      }}
+                    >
                       Clear All
                     </Link>
                   </div>
                 </div>
-
-                <div className="filter-choices-input">
-                  <Select
-                    value={selectedMulti}
-                    isMulti={true}
-                    onChange={() => {
-                      handleMulti();
-                    }}
-                    options={SingleOptions}
-                  />
-                </div>
               </CardHeader>
 
-              <div className="accordion accordion-flush">
-                <div className="card-body border-bottom">
-                  <div>
-                    <p className="text-muted text-uppercase fs-12 fw-medium mb-2">
-                      Products
-                    </p>
-                    <ul className="list-unstyled mb-0 filter-list">
-                      <li>
-                        <Link to="#" className={cate === "Kitchen Storage & Containers" ? "active d-flex py-1 align-items-center" : "d-flex py-1 align-items-center"} onClick={() => categories("Kitchen Storage & Containers")}>
-                          <div className="flex-grow-1">
-                            <h5 className="fs-13 mb-0 listname">Grocery</h5>
-                          </div>
-                        </Link>
-                      </li>
-                      <li>
-                        <Link to="#" className={cate === "Clothes" ? "active d-flex py-1 align-items-center" : "d-flex py-1 align-items-center"} onClick={() => categories("Clothes")}>
-                          <div className="flex-grow-1">
-                            <h5 className="fs-13 mb-0 listname">Fashion</h5>
-                          </div>
-                          <div className="flex-shrink-0 ms-2">
-                            <span className="badge bg-light text-muted">5</span>
-                          </div>
-                        </Link>
-                      </li>
-                      <li>
-                        <Link to="#" className={cate === "Watches" ? "active d-flex py-1 align-items-center" : "d-flex py-1 align-items-center"} onClick={() => categories("Watches")}>
-                          <div className="flex-grow-1">
-                            <h5 className="fs-13 mb-0 listname">Watches</h5>
-                          </div>
-                        </Link>
-                      </li>
-                      <li>
-                        <Link to="#" className={cate === "electronics" ? "active d-flex py-1 align-items-center" : "d-flex py-1 align-items-center"} onClick={() => categories("electronics")}>
-                          <div className="flex-grow-1">
-                            <h5 className="fs-13 mb-0 listname">Electronics</h5>
-                          </div>
-                          <div className="flex-shrink-0 ms-2">
-                            <span className="badge bg-light text-muted">5</span>
-                          </div>
-                        </Link>
-                      </li>
-                      <li>
-                        <Link to="#" className={cate === "Furniture" ? "active d-flex py-1 align-items-center" : "d-flex py-1 align-items-center"} onClick={() => categories("Furniture")}>
-                          <div className="flex-grow-1">
-                            <h5 className="fs-13 mb-0 listname">Furniture</h5>
-                          </div>
-                          <div className="flex-shrink-0 ms-2">
-                            <span className="badge bg-light text-muted">6</span>
-                          </div>
-                        </Link>
-                      </li>
-                      <li>
-                        <Link to="#" className={cate === "Bike Accessories" ? "active d-flex py-1 align-items-center" : "d-flex py-1 align-items-center"} onClick={() => categories("Bike Accessories")}>
-                          <div className="flex-grow-1">
-                            <h5 className="fs-13 mb-0 listname">Automotive Accessories</h5>
-                          </div>
-                        </Link>
-                      </li>
-                      <li>
-                        <Link to="#" className={cate === "appliances" ? "active d-flex py-1 align-items-center" : "d-flex py-1 align-items-center"} onClick={() => categories("appliances")}>
-                          <div className="flex-grow-1">
-                            <h5 className="fs-13 mb-0 listname">Appliances</h5>
-                          </div>
-                          <div className="flex-shrink-0 ms-2">
-                            <span className="badge bg-light text-muted">7</span>
-                          </div>
-                        </Link>
-                      </li>
-                      <li>
-                        <Link to="#" className={cate === "Bags, Wallets and Luggage" ? "active d-flex py-1 align-items-center" : "d-flex py-1 align-items-center"} onClick={() => categories("Bags, Wallets and Luggage")} >
-                          <div className="flex-grow-1">
-                            <h5 className="fs-13 mb-0 listname">Kids</h5>
-                          </div>
-                        </Link>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
+              {/* Categories Filter */}
+              <div className="card-body border-bottom">
+                <p className="text-muted text-uppercase fs-12 fw-medium mb-2">
+                  Categories
+                </p>
+                <ul className="list-unstyled mb-0 filter-list">
+                  <li>
+                    <Link
+                      to="#"
+                      className={
+                        categoryFilter === "all"
+                          ? "active d-flex py-1 align-items-center"
+                          : "d-flex py-1 align-items-center"
+                      }
+                      onClick={() => categoriesFilter("all")}
+                    >
+                      <div className="flex-grow-1">
+                        <h5 className="fs-13 mb-0 listname">All</h5>
+                      </div>
+                    </Link>
+                  </li>
+                  {categories.map((category) => (
+                    <li key={category.$id}>
+                      <Link
+                        to="#"
+                        className={
+                          categoryFilter === category.$id
+                            ? "active d-flex py-1 align-items-center"
+                            : "d-flex py-1 align-items-center"
+                        }
+                        onClick={() => categoriesFilter(category.$id)}
+                      >
+                        <div className="flex-grow-1">
+                          <h5 className="fs-13 mb-0 listname">{category.name}</h5>
+                        </div>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
 
-                <div className="card-body border-bottom">
-                  <p className="text-muted text-uppercase fs-12 fw-medium mb-4">
-                    Price
-                  </p>
+              {/* Price Filter */}
+              <div className="card-body border-bottom">
+                <p className="text-muted text-uppercase fs-12 fw-medium mb-4">
+                  Price
+                </p>
 
-                  <Nouislider
-                    range={{ min: 0, max: 2000 }}
-                    start={[0, 2000]}
-                    connect
-                    onSlide={onUpdate}
-                    data-slider-color="primary"
-                    id="product-price-range"
+                {isFinite(priceSliderRange.min) && isFinite(priceSliderRange.max) && (
+                  <>
+                    <Nouislider
+                      key={priceSliderRange.min + "-" + priceSliderRange.max}
+                      range={{
+                        min: priceSliderRange.min,
+                        max: priceSliderRange.max,
+                      }}
+                      start={[priceRange.min, priceRange.max]}
+                      connect
+                      onSlide={onUpdate}
+                      data-slider-color="primary"
+                      id="product-price-range"
+                    />
+                    <div className="formCost d-flex gap-2 align-items-center mt-3">
+                      <Input
+                        className="form-control form-control-sm"
+                        type="text"
+                        id="minCost"
+                        placeholder="Min"
+                        readOnly
+                      />
+                      <span className="fw-semibold text-muted">to</span>
+                      <Input
+                        className="form-control form-control-sm"
+                        type="text"
+                        id="maxCost"
+                        placeholder="Max"
+                        readOnly
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* On Sale Filter with Toggle Switch */}
+              <div className="card-body border-bottom">
+                <p className="text-muted text-uppercase fs-12 fw-medium mb-2">
+                  On Sale
+                </p>
+                <div className="form-check form-switch mb-3">
+                  <Input
+                    className="form-check-input"
+                    type="checkbox"
+                    role="switch"
+                    id="onSaleSwitch"
+                    checked={isOnSaleFilter}
+                    onChange={(e) => {
+                      setIsOnSaleFilter(e.target.checked);
+                    }}
                   />
-                  <div className="formCost d-flex gap-2 align-items-center mt-3">
-                    <input className="form-control form-control-sm" type="text" id="minCost" readOnly />
-                    <span className="fw-semibold text-muted">to</span>
-                    <input className="form-control form-control-sm" type="text" id="maxCost" readOnly />
-                  </div>
+                  <Label className="form-check-label" htmlFor="onSaleSwitch">
+                    Show only products on sale
+                  </Label>
                 </div>
+              </div>
 
-                <div className="accordion-item">
-                  <h2 className="accordion-header">
-                    <button
-                      className="accordion-button bg-transparent shadow-none"
-                      type="button"
-                      id="flush-headingBrands"
-                    >
-                      <span className="text-muted text-uppercase fs-12 fw-medium">
-                        Brands
-                      </span>{" "}
-                      <span className="badge bg-success rounded-pill align-middle ms-1">
-                        2
-                      </span>
-                    </button>
-                  </h2>
-                  <UncontrolledCollapse
-                    toggler="#flush-headingBrands"
-                    defaultOpen
-                  >
-                    <div
-                      id="flush-collapseBrands"
-                      className="accordion-collapse collapse show"
-                      aria-labelledby="flush-headingBrands"
-                    >
-                      <div className="accordion-body text-body pt-0">
-                        <div className="search-box search-box-sm">
-                          <input
-                            type="text"
-                            className="form-control bg-light border-0"
-                            placeholder="Search Brands..."
-                          />
-                          <i className="ri-search-line search-icon"></i>
-                        </div>
-                        <div className="d-flex flex-column gap-2 mt-3">
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id="productBrandRadio5"
-                              defaultChecked
-                            />
-                            <label
-                              className="form-check-label"
-                              htmlFor="productBrandRadio5"
-                            >
-                              Boat
-                            </label>
-                          </div>
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id="productBrandRadio4"
-                            />
-                            <label
-                              className="form-check-label"
-                              htmlFor="productBrandRadio4"
-                            >
-                              OnePlus
-                            </label>
-                          </div>
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id="productBrandRadio3"
-                            />
-                            <label
-                              className="form-check-label"
-                              htmlFor="productBrandRadio3"
-                            >
-                              Realme
-                            </label>
-                          </div>
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id="productBrandRadio2"
-                            />
-                            <label
-                              className="form-check-label"
-                              htmlFor="productBrandRadio2"
-                            >
-                              Sony
-                            </label>
-                          </div>
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id="productBrandRadio1"
-                              defaultChecked
-                            />
-                            <label
-                              className="form-check-label"
-                              htmlFor="productBrandRadio1"
-                            >
-                              JBL
-                            </label>
-                          </div>
-
-                          <div>
-                            <button
-                              type="button"
-                              className="btn btn-link text-decoration-none text-uppercase fw-medium p-0"
-                            >
-                              1,235 More
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </UncontrolledCollapse>
-                </div>
-
-                <div className="accordion-item">
-                  <h2 className="accordion-header">
-                    <button
-                      className="accordion-button bg-transparent shadow-none collapsed"
-                      type="button"
-                      id="flush-headingDiscount"
-                    >
-                      <span className="text-muted text-uppercase fs-12 fw-medium">
-                        Discount
-                      </span>{" "}
-                      <span className="badge bg-success rounded-pill align-middle ms-1">
-                        1
-                      </span>
-                    </button>
-                  </h2>
-                  <UncontrolledCollapse toggler="#flush-headingDiscount">
-                    <div
-                      id="flush-collapseDiscount"
-                      className="accordion-collapse collapse show"
-                    >
-                      <div className="accordion-body text-body pt-1">
-                        <div className="d-flex flex-column gap-2">
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id="productdiscountRadio6"
-                            />
-                            <label
-                              className="form-check-label"
-                              htmlFor="productdiscountRadio6"
-                            >
-                              50% or more
-                            </label>
-                          </div>
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id="productdiscountRadio5"
-                            />
-                            <label
-                              className="form-check-label"
-                              htmlFor="productdiscountRadio5"
-                            >
-                              40% or more
-                            </label>
-                          </div>
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id="productdiscountRadio4"
-                            />
-                            <label
-                              className="form-check-label"
-                              htmlFor="productdiscountRadio4"
-                            >
-                              30% or more
-                            </label>
-                          </div>
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id="productdiscountRadio3"
-                              defaultChecked
-                            />
-                            <label
-                              className="form-check-label"
-                              htmlFor="productdiscountRadio3"
-                            >
-                              20% or more
-                            </label>
-                          </div>
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id="productdiscountRadio2"
-                            />
-                            <label
-                              className="form-check-label"
-                              htmlFor="productdiscountRadio2"
-                            >
-                              10% or more
-                            </label>
-                          </div>
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id="productdiscountRadio1"
-                            />
-                            <label
-                              className="form-check-label"
-                              htmlFor="productdiscountRadio1"
-                            >
-                              Less than 10%
-                            </label>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </UncontrolledCollapse>
-                </div>
-
-                <div className="accordion-item">
-                  <h2 className="accordion-header">
-                    <button
-                      className="accordion-button bg-transparent shadow-none collapsed"
-                      type="button"
-                      id="flush-headingRating"
-                    >
-                      <span className="text-muted text-uppercase fs-12 fw-medium">
-                        Rating
-                      </span>{" "}
-                      <span className="badge bg-success rounded-pill align-middle ms-1">
-                        1
-                      </span>
-                    </button>
-                  </h2>
-
-                  <UncontrolledCollapse toggler="#flush-headingRating">
-                    <div
-                      id="flush-collapseRating"
-                      className="accordion-collapse collapse show"
-                      aria-labelledby="flush-headingRating"
-                    >
-                      <div className="accordion-body text-body">
-                        <div className="d-flex flex-column gap-2">
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id="productratingRadio4"
-                              onChange={e => {
-                                if (e.target.checked) {
-                                  onChangeRating(4);
-                                } else {
-                                  onUncheckMark(4);
-                                }
-                              }}
-                            />
-                            <label
-                              className="form-check-label"
-                              htmlFor="productratingRadio4"
-                            >
-                              <span className="text-muted">
-                                <i className="mdi mdi-star text-warning"></i>
-                                <i className="mdi mdi-star text-warning"></i>
-                                <i className="mdi mdi-star text-warning"></i>
-                                <i className="mdi mdi-star text-warning"></i>
-                                <i className="mdi mdi-star"></i>
-                              </span>{" "}
-                              4 & Above
-                            </label>
-                          </div>
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id="productratingRadio3"
-                              onChange={e => {
-                                if (e.target.checked) {
-                                  onChangeRating(3);
-                                } else {
-                                  onUncheckMark(3);
-                                }
-                              }}
-                            />
-                            <label
-                              className="form-check-label"
-                              htmlFor="productratingRadio3"
-                            >
-                              <span className="text-muted">
-                                <i className="mdi mdi-star text-warning"></i>
-                                <i className="mdi mdi-star text-warning"></i>
-                                <i className="mdi mdi-star text-warning"></i>
-                                <i className="mdi mdi-star"></i>
-                                <i className="mdi mdi-star"></i>
-                              </span>{" "}
-                              3 & Above
-                            </label>
-                          </div>
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id="productratingRadio2"
-                            />
-                            <label
-                              className="form-check-label"
-                              htmlFor="productratingRadio2"
-                              onChange={e => {
-                                if (e.target.checked) {
-                                  onChangeRating(2);
-                                } else {
-                                  onUncheckMark(2);
-                                }
-                              }}
-                            >
-                              <span className="text-muted">
-                                <i className="mdi mdi-star text-warning"></i>
-                                <i className="mdi mdi-star text-warning"></i>
-                                <i className="mdi mdi-star"></i>
-                                <i className="mdi mdi-star"></i>
-                                <i className="mdi mdi-star"></i>
-                              </span>{" "}
-                              2 & Above
-                            </label>
-                          </div>
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id="productratingRadio1"
-                              onChange={e => {
-                                if (e.target.checked) {
-                                  onChangeRating(1);
-                                } else {
-                                  onUncheckMark(1);
-                                }
-                              }}
-                            />
-                            <label
-                              className="form-check-label"
-                              htmlFor="productratingRadio1"
-                            >
-                              <span className="text-muted">
-                                <i className="mdi mdi-star text-warning"></i>
-                                <i className="mdi mdi-star"></i>
-                                <i className="mdi mdi-star"></i>
-                                <i className="mdi mdi-star"></i>
-                                <i className="mdi mdi-star"></i>
-                              </span>{" "}
-                              1
-                            </label>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </UncontrolledCollapse>
+              {/* Wholesale Filter with Toggle Switch */}
+              <div className="card-body border-bottom">
+                <p className="text-muted text-uppercase fs-12 fw-medium mb-2">
+                  Wholesale
+                </p>
+                <div className="form-check form-switch mb-3">
+                  <Input
+                    className="form-check-input"
+                    type="checkbox"
+                    role="switch"
+                    id="wholesaleSwitch"
+                    checked={isWholesaleFilter}
+                    onChange={(e) => {
+                      setIsWholesaleFilter(e.target.checked);
+                    }}
+                  />
+                  <Label className="form-check-label" htmlFor="wholesaleSwitch">
+                    Show only wholesale products
+                  </Label>
                 </div>
               </div>
             </Card>
@@ -833,69 +533,19 @@ const products = useSelector(selectecomproductData);
                 <div className="card-header border-0">
                   <Row className=" align-items-center">
                     <Col>
-                      <Nav
-                        className="nav-tabs-custom card-header-tabs border-bottom-0"
-                        role="tablist"
-                      >
-                        <NavItem>
-                          <NavLink
-                            className={classnames(
-                              { active: activeTab === "1" },
-                              "fw-semibold"
-                            )}
-                            onClick={() => {
-                              toggleTab("1", "all");
-                            }}
-                            href="#"
-                          >
-                            All{" "}
-                            <span className="badge bg-danger-subtle text-danger align-middle rounded-pill ms-1">
-                              12
-                            </span>
-                          </NavLink>
-                        </NavItem>
-                        <NavItem>
-                          <NavLink
-                            className={classnames(
-                              { active: activeTab === "2" },
-                              "fw-semibold"
-                            )}
-                            onClick={() => {
-                              toggleTab("2", "published");
-                            }}
-                            href="#"
-                          >
-                            Published{" "}
-                            <span className="badge bg-danger-subtle text-danger align-middle rounded-pill ms-1">
-                              5
-                            </span>
-                          </NavLink>
-                        </NavItem>
-                        <NavItem>
-                          <NavLink
-                            className={classnames(
-                              { active: activeTab === "3" },
-                              "fw-semibold"
-                            )}
-                            onClick={() => {
-                              toggleTab("3", "draft");
-                            }}
-                            href="#"
-                          >
-                            Draft
-                          </NavLink>
-                        </NavItem>
-                        </Nav>
+                      <h5 className="card-title mb-0">Products</h5>
                     </Col>
                     <div className="col-auto">
-                      <div id="selection-element">
+                      <div id="selection-element" style={{ display: "none" }}>
                         <div className="my-n1 d-flex align-items-center text-muted">
-                          Select{" "}
+                          Selected{" "}
                           <div
                             id="select-content"
                             className="text-body fw-semibold px-1"
-                          >{dele}</div>{" "}
-                          Result{" "}
+                          >
+                            {dele}
+                          </div>{" "}
+                          Result(s){" "}
                           <button
                             type="button"
                             className="btn btn-link link-danger p-0 ms-3"
@@ -909,10 +559,10 @@ const products = useSelector(selectecomproductData);
                   </Row>
                 </div>
                 <div className="card-body pt-0">
-                  {productList && productList.length > 0 ? (
+                  {filteredProductList && filteredProductList.length > 0 ? (
                     <TableContainer
                       columns={columns}
-                      data={(productList || [])}
+                      data={filteredProductList}
                       isGlobalFilter={true}
                       isAddUserList={false}
                       customPageSize={10}
@@ -920,7 +570,7 @@ const products = useSelector(selectecomproductData);
                       tableClass="mb-0 align-middle table-borderless"
                       theadClass="table-light text-muted"
                       isProductsFilter={true}
-                      SearchPlaceholder='Search Products...'
+                      SearchPlaceholder="Search Products..."
                     />
                   ) : (
                     <div className="py-4 text-center">
@@ -939,18 +589,6 @@ const products = useSelector(selectecomproductData);
                     </div>
                   )}
                 </div>
-
-                {/* <div className="card-body">
-                  <TabContent className="text-muted">
-                    <TabPane>
-                      <div
-                        id="table-product-list-all"
-                        className="table-card gridjs-border-none pb-2"
-                      >
-                      </div>
-                    </TabPane>
-                  </TabContent>
-                </div> */}
               </Card>
             </div>
           </Col>

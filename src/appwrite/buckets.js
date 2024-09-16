@@ -1,6 +1,6 @@
 export const buckets = [
   {
-    id: "668c2b8e002e42c874ec",
+    id: "66db32db002f8d9875a9",
     name: "images",
   },
   {

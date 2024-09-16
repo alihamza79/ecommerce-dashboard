@@ -13,11 +13,12 @@ buckets.forEach((bucket) => {
 
     getFile: async (id) => await storage.getFile(bucket.id, id),
 
-    getFileDownload: async (id) => await storage.getFileDownload(bucket.id, id),
+    // Remove async/await here
+    getFileDownload: (id) => storage.getFileDownload(bucket.id, id),
 
-    getFilePreview: async (id) => await storage.getFilePreview(bucket.id, id),
+    getFilePreview: (id, options) => storage.getFilePreview(bucket.id, id, options),
 
-    getFileView: async (id) => await storage.getFileView(bucket.id, id),
+    getFileView: (id) => storage.getFileView(bucket.id, id),
 
     listFiles: async (queries) => await storage.listFiles(bucket.id, queries),
 

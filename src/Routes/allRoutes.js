@@ -243,6 +243,10 @@ import ToDoList from "../pages/ToDo";
 import RangeArea from "../pages/Charts/ApexCharts/RangeAreaCharts/Index";
 import FunnelChart from "../pages/Charts/ApexCharts/FunnelCharts/Index";
 import UiLink from "../pages/BaseUi/UiLinks/UiLinks";
+import EcommerceEditProduct from "../pages/Ecommerce/EcommerceProducts/EcommerceEditProduct";
+import EcommerceCategories from "../pages/Ecommerce/EcommerceCategory/EcommerceCategories";
+import EcommerceAddCategory from "../pages/Ecommerce/EcommerceCategory/EcommerceAddCategory";
+import EcommerceEditCategory from "../pages/Ecommerce/EcommerceCategory/EcommerceEditCategory";
 
 const authProtectedRoutes = [
   { path: "/dashboard-analytics", component: <DashboardAnalytics /> },
@@ -256,9 +260,20 @@ const authProtectedRoutes = [
   { path: "/apps-calendar", component: <Calendar /> },
   { path: "/apps-calendar-month-grid", component: <MonthGrid /> },
   { path: "/apps-ecommerce-products", component: <EcommerceProducts /> },
-  { path: "/apps-ecommerce-product-details/:_id", component: <EcommerceProductDetail /> },
+  { path: "/apps-ecommerce-product-details/:id", component: <EcommerceProductDetail /> },
   { path: "/apps-ecommerce-product-details", component: <EcommerceProductDetail /> },
   { path: "/apps-ecommerce-add-product", component: <EcommerceAddProduct /> },
+  { path: "/apps-ecommerce-edit-product/:productId", component: <EcommerceEditProduct /> },
+
+
+  { path: "/apps-ecommerce-categories", component: <EcommerceCategories /> },
+  { path: "/apps-ecommerce-add-category", component: <EcommerceAddCategory /> },
+  { path: "/apps-ecommerce-edit-category/:categoryId", component: <EcommerceEditCategory /> },
+
+
+
+
+
   { path: "/apps-ecommerce-orders", component: <EcommerceOrders /> },
   { path: "/apps-ecommerce-order-details", component: <EcommerceOrderDetail /> },
   { path: "/apps-ecommerce-customers", component: <EcommerceCustomers /> },

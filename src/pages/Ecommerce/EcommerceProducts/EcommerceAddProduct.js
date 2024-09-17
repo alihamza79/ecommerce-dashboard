@@ -25,9 +25,8 @@ import ClassicEditor from "@ckeditor/ckeditor5-build-classic";
 
 const EcommerceAddProduct = () => {
   const dispatch = useDispatch();
-  const history = useNavigate();
+  const navigate = useNavigate();
   const [selectedFiles, setSelectedFiles] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState(null);
   const [categories, setCategories] = useState([]);
   const [isWholesale, setIsWholesale] = useState(false);
   const [isOnSale, setIsOnSale] = useState(false); // Toggle state for "On Sale"
@@ -57,7 +56,12 @@ const EcommerceAddProduct = () => {
         preview: URL.createObjectURL(file),
       })
     );
-    setSelectedFiles(previewFiles);
+    setSelectedFiles([...selectedFiles, ...previewFiles]); // Append new files
+  };
+
+  // Remove a selected image
+  const removeSelectedFile = (file) => {
+    setSelectedFiles(selectedFiles.filter((f) => f !== file));
   };
 
   // Formik validation schema
@@ -105,7 +109,7 @@ const EcommerceAddProduct = () => {
           stockQuantity: parseInt(values.stockQuantity),
           categoryId: values.categoryId,
           images: imageIds, // Store the uploaded image IDs
-          tags: values.tags.split(","),
+          tags: values.tags.split(",").map((tag) => tag.trim()),
           isOnSale: isOnSale,
           isWholesaleProduct: isWholesale,
           wholesalePrice: isWholesale
@@ -115,7 +119,7 @@ const EcommerceAddProduct = () => {
 
         // Save the product to the Appwrite Products collection
         await db.Products.create(newProduct);
-        history("/apps-ecommerce-products");
+        navigate("/apps-ecommerce-products");
       } catch (error) {
         console.error("Failed to create product:", error);
       }
@@ -186,7 +190,7 @@ const EcommerceAddProduct = () => {
                     </CardHeader>
                     <CardBody>
                       <div className="mb-4">
-                        <h5 className="fs-14 mb-1">Product Image</h5>
+                        <h5 className="fs-14 mb-1">Product Images</h5>
                         <Dropzone
                           onDrop={(acceptedFiles) => {
                             handleAcceptedFiles(acceptedFiles);
@@ -226,9 +230,18 @@ const EcommerceAddProduct = () => {
                                     />
                                   </Col>
                                   <Col>
-                                    <p className="text-muted font-weight-bold">
+                                    <p className="text-muted font-weight-bold mb-0">
                                       {f.name}
                                     </p>
+                                  </Col>
+                                  <Col className="col-auto">
+                                    <Button
+                                      color="danger"
+                                      size="sm"
+                                      onClick={() => removeSelectedFile(f)}
+                                    >
+                                      Remove
+                                    </Button>
                                   </Col>
                                 </Row>
                               </div>

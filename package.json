@@ -38,7 +38,7 @@
     "filepond-plugin-image-exif-orientation": "^1.0.11",
     "filepond-plugin-image-preview": "^4.6.12",
     "firebase": "^10.11.0",
-    "formik": "^2.4.5",
+    "formik": "^2.4.6",
     "google-maps-react": "^2.0.6",
     "i18next": "^23.11.2",
     "i18next-browser-languagedetector": "^7.2.1",
@@ -121,6 +121,7 @@
     "@types/lodash": "^4.17.0",
     "@types/react-bootstrap-table2-paginator": "^2.1.6",
     "@types/react-bootstrap-table2-toolkit": "^2.1.13",
-    "babel-eslint": "^10.1.0"
+    "babel-eslint": "^10.1.0",
+    "eslint-plugin-react-hooks": "^4.6.2"
   }
 }

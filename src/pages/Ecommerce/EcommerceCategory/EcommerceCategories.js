@@ -1,5 +1,3 @@
-// src/pages/Ecommerce/EcommerceCategories.js
-
 import React, { useEffect, useState, useMemo } from "react";
 import {
   Container,
@@ -19,8 +17,10 @@ import BreadCrumb from "../../../Components/Common/BreadCrumb";
 import TableContainer from "../../../Components/Common/TableContainer";
 import DeleteModal from "../../../Components/Common/DeleteModal";
 import db from "../../../appwrite/Services/dbServices";
+import storageServices from "../../../appwrite/Services/storageServices"; // Import storage services
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { Query } from "appwrite"; // Ensure Query is imported correctly
 
 const EcommerceCategories = () => {
   const [categoryList, setCategoryList] = useState([]);
@@ -35,7 +35,7 @@ const EcommerceCategories = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await db.Categories.list();
+        const response = await db.Categories.list(); // No queries needed for fetching all
         const categories = response.documents.map((category) => ({
           ...category,
         }));
@@ -58,25 +58,58 @@ const EcommerceCategories = () => {
     setDeleteModal(true);
   };
 
-  // Function to handle deletion of a single category
+  // Function to delete associated products and their images
+  const deleteProductsByCategory = async (categoryId) => {
+    try {
+      // Corrected: Pass queries as an array directly
+      const productsResponse = await db.Products.list([Query.equal("categoryId", categoryId)]);
+      const products = productsResponse.documents;
+
+      // Delete each product's images and the product itself
+      await Promise.all(
+        products.map(async (product) => {
+          // Delete associated product images
+          if (product.images && product.images.length > 0) {
+            await Promise.all(
+              product.images.map(async (imageId) => {
+                await storageServices.images.deleteFile(imageId);
+              })
+            );
+          }
+          // Delete the product
+          await db.Products.delete(product.$id);
+        })
+      );
+    } catch (error) {
+      console.error("Failed to delete products:", error);
+      throw new Error("Failed to delete associated products");
+    }
+  };
+
+  // Function to handle deletion of a single category and its products
   const handleDeleteCategory = async () => {
     if (categoryToDelete) {
       try {
-        // Optionally, check if any products are associated with this category
-        // and prevent deletion or handle accordingly
+        // Delete associated products and their images first
+        await deleteProductsByCategory(categoryToDelete.$id);
+
+        // Delete associated category image if it exists
+        if (categoryToDelete.image) {
+          await storageServices.images.deleteFile(categoryToDelete.image);
+        }
 
         // Delete the category document
         await db.Categories.delete(categoryToDelete.$id);
         setDeleteModal(false);
 
-        // Remove the deleted category from the state
-        setCategoryList(categoryList.filter((c) => c.$id !== categoryToDelete.$id));
-        setFilteredCategoryList(filteredCategoryList.filter((c) => c.$id !== categoryToDelete.$id));
+        // Update the state using functional updates
+        setCategoryList((prevList) => prevList.filter((c) => c.$id !== categoryToDelete.$id));
+        setFilteredCategoryList((prevList) => prevList.filter((c) => c.$id !== categoryToDelete.$id));
 
-        toast.success("Category deleted successfully");
+        toast.success("Category and associated products deleted successfully");
       } catch (error) {
         console.error("Failed to delete category:", error);
-        toast.error("Failed to delete category");
+        toast.error(error.message || "Failed to delete category");
       }
     }
   };
@@ -93,7 +126,7 @@ const EcommerceCategories = () => {
     }
   };
 
-  // Function to handle deletion of multiple categories
+  // Function to handle deletion of multiple categories and their products
   const deleteMultiple = async () => {
     const ele = document.querySelectorAll(".categoryCheckBox:checked");
     const del = document.getElementById("selection-element");
@@ -101,7 +134,15 @@ const EcommerceCategories = () => {
       await Promise.all(
         Array.from(ele).map(async (element) => {
           const categoryId = element.value;
-          // Optionally, check if any products are associated with this category
+          const category = categoryList.find((c) => c.$id === categoryId);
+
+          // Delete associated products and their images
+          await deleteProductsByCategory(categoryId);
+
+          // Delete associated category image if it exists
+          if (category.image) {
+            await storageServices.images.deleteFile(category.image);
+          }
 
           // Delete the category
           await db.Categories.delete(categoryId);
@@ -109,17 +150,22 @@ const EcommerceCategories = () => {
       );
       // Remove the deleted categories from the state
       const deletedIds = Array.from(ele).map((element) => element.value);
-      setCategoryList(categoryList.filter((c) => !deletedIds.includes(c.$id)));
-      setFilteredCategoryList(filteredCategoryList.filter((c) => !deletedIds.includes(c.$id)));
+      setCategoryList((prevList) => prevList.filter((c) => !deletedIds.includes(c.$id)));
+      setFilteredCategoryList((prevList) => prevList.filter((c) => !deletedIds.includes(c.$id)));
       del.style.display = "none";
       setDele(0);
       setDeleteModalMulti(false);
 
-      toast.success("Selected categories deleted successfully");
+      toast.success("Selected categories and associated products deleted successfully");
     } catch (error) {
       console.error("Failed to delete categories:", error);
-      toast.error("Failed to delete selected categories");
+      toast.error(error.message || "Failed to delete selected categories");
     }
+  };
+
+  // Function to get image URL
+  const getImageURL = (imageId) => {
+    return storageServices.images.getFilePreview(imageId);
   };
 
   // Define table columns using useMemo for performance optimization
@@ -142,6 +188,27 @@ const EcommerceCategories = () => {
         },
       },
       {
+        header: "Image",
+        accessorKey: "image",
+        enableColumnFilter: false,
+        cell: (cell) => {
+          const imageId = cell.getValue();
+          return imageId ? (
+            <img
+              src={getImageURL(imageId)}
+              alt={cell.row.original.name}
+              style={{ width: "50px", height: "50px", objectFit: "cover", borderRadius: "4px" }}
+            />
+          ) : (
+            <img
+              src="/path/to/default-category-image.jpg" // Provide a default image path
+              alt="Default"
+              style={{ width: "50px", height: "50px", objectFit: "cover", borderRadius: "4px" }}
+            />
+          );
+        },
+      },
+      {
         header: "Category Name",
         accessorKey: "name",
         enableColumnFilter: false,
@@ -155,28 +222,19 @@ const EcommerceCategories = () => {
         header: "Description",
         accessorKey: "description",
         enableColumnFilter: false,
-        cell: (cell) => (
-          <span>{cell.getValue() ? cell.getValue() : "No description."}</span>
-        ),
+        cell: (cell) => <span>{cell.getValue() ? cell.getValue() : "No description."}</span>,
       },
       {
         header: "Action",
         cell: (cell) => {
           return (
             <UncontrolledDropdown>
-              <DropdownToggle
-                href="#"
-                className="btn btn-soft-secondary btn-sm"
-                tag="button"
-              >
+              <DropdownToggle href="#" className="btn btn-soft-secondary btn-sm" tag="button">
                 <i className="ri-more-fill" />
               </DropdownToggle>
               <DropdownMenu className="dropdown-menu-end">
                 {/* Edit Category */}
-                <DropdownItem
-                  tag={Link}
-                  to={`/apps-ecommerce-edit-category/${cell.row.original.$id}`}
-                >
+                <DropdownItem tag={Link} to={`/apps-ecommerce-edit-category/${cell.row.original.$id}`}>
                   <i className="ri-pencil-fill align-bottom me-2 text-muted"></i> Edit
                 </DropdownItem>
 
@@ -203,14 +261,15 @@ const EcommerceCategories = () => {
     <div className="page-content">
       {/* Toast notifications */}
       <ToastContainer closeButton={false} limit={1} />
-      
+
       {/* Single Delete Modal */}
       <DeleteModal
         show={deleteModal}
         onDeleteClick={handleDeleteCategory}
         onCloseClick={() => setDeleteModal(false)}
         title="Delete Category"
-        message="Are you sure you want to delete this category? This action cannot be undone."
+        requireConfirmation = "true" 
+        message="Are you sure you want to delete this category and all its associated products? This action cannot be undone."
       />
 
       {/* Bulk Delete Modal */}
@@ -219,7 +278,8 @@ const EcommerceCategories = () => {
         onDeleteClick={deleteMultiple}
         onCloseClick={() => setDeleteModalMulti(false)}
         title="Delete Selected Categories"
-        message="Are you sure you want to delete the selected categories? This action cannot be undone."
+        requireConfirmation = "true" 
+        message="Are you sure you want to delete the selected categories and all their associated products? This action cannot be undone."
       />
 
       <Container fluid>
@@ -227,14 +287,9 @@ const EcommerceCategories = () => {
         <BreadCrumb title="Categories" pageTitle="Ecommerce" />
 
         {/* Add Category Button */}
-        <Row>
-          <Col xl={3} lg={4}>
-            <Button
-              color="success"
-              tag={Link}
-              to="/apps-ecommerce-add-category"
-              className="mb-3"
-            >
+        <Row className="mb-3">
+          <Col>
+            <Button color="success" tag={Link} to="/apps-ecommerce-add-category">
               <i className="ri-add-line align-bottom me-1"></i> Add Category
             </Button>
           </Col>
@@ -254,10 +309,7 @@ const EcommerceCategories = () => {
                     <div id="selection-element" style={{ display: "none" }}>
                       <div className="my-n1 d-flex align-items-center text-muted">
                         Selected{" "}
-                        <div
-                          id="select-content"
-                          className="text-body fw-semibold px-1"
-                        >
+                        <div id="select-content" className="text-body fw-semibold px-1">
                           {dele}
                         </div>{" "}
                         Result(s)

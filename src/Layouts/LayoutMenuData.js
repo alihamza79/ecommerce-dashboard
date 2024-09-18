@@ -293,13 +293,8 @@ const Navdata = () => {
                         { id: 1, label: "Products", link: "/apps-ecommerce-products", parentId: "apps" },
                         // { id: 2, label: "Product Details", link: "/apps-ecommerce-product-details", parentId: "apps" },
                         { id: 3, label: "Create Product", link: "/apps-ecommerce-add-product", parentId: "apps" },
-
                         { id: 4, label: "Categories", link: "/apps-ecommerce-categories", parentId: "apps" },
                         { id: 5, label: "Create Categories", link: "/apps-ecommerce-add-category", parentId: "apps" },
-
-
-
-
                         { id: 6, label: "Orders", link: "/apps-ecommerce-orders", parentId: "apps" },
                         { id: 7, label: "Order Details", link: "/apps-ecommerce-order-details", parentId: "apps" },
                         { id: 8, label: "Customers", link: "/apps-ecommerce-customers", parentId: "apps" },

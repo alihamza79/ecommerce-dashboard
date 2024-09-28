@@ -1,49 +1,52 @@
 import React from 'react';
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 
-//Layouts
+// Layouts
 import NonAuthLayout from "../Layouts/NonAuthLayout";
 import VerticalLayout from "../Layouts/index";
 
-//routes
+// Routes
 import { authProtectedRoutes, publicRoutes } from "./allRoutes";
-import { AuthProtected } from './AuthProtected';
+import AuthProtected from './AuthProtected';
 
 const Index = () => {
-    return (
-        <React.Fragment>
-            <Routes>
-                <Route>
-                    {publicRoutes.map((route, idx) => (
-                        <Route
-                            path={route.path}
-                            element={
-                                <NonAuthLayout>
-                                    {route.component}
-                                </NonAuthLayout>
-                            }
-                            key={idx}
-                            exact={true}
-                        />
-                    ))}
-                </Route>
+  return (
+    <React.Fragment>
+      <Routes>
+        {/* Public Routes */}
+        {publicRoutes.map((route, idx) => (
+          <Route
+            key={idx}
+            path={route.path}
+            element={
+              <NonAuthLayout>
+                {route.component}
+              </NonAuthLayout>
+            }
+          />
+        ))}
 
-                <Route>
-                    {authProtectedRoutes.map((route, idx) => (
-                        <Route
-                            path={route.path}
-                            element={
-                                <AuthProtected>
-                                    <VerticalLayout>{route.component}</VerticalLayout>
-                                </AuthProtected>}
-                            key={idx}
-                            exact={true}
-                        />
-                    ))}
-                </Route>
-            </Routes>
-        </React.Fragment>
-    );
+        {/* Protected Routes */}
+        {authProtectedRoutes.map((route, idx) => (
+          <Route
+            key={idx}
+            path={route.path}
+            element={
+              <AuthProtected>
+                <VerticalLayout>
+                  {route.component}
+                </VerticalLayout>
+              </AuthProtected>
+            }
+          />
+        ))}
+
+        {/* Fallback Route */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </React.Fragment>
+  );
 };
 
 export default Index;
+

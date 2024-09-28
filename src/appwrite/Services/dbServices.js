@@ -1,6 +1,7 @@
+// src/services/dbServices.js
 import { collections } from "../collections";
 import { databaseId, databases } from "../config";
-import { ID } from "appwrite";
+import { ID, Query } from "appwrite";
 import storageServices from "./storageServices";
 
 const db = {};
@@ -15,16 +16,12 @@ collections.forEach((col) => {
 
     get: async (id) => await databases.getDocument(databaseId, col.id, id),
 
-    list: async (queries) =>
+    list: async (queries = []) =>
       await databases.listDocuments(databaseId, col.id, queries),
 
     delete: async (id) =>
       await databases.deleteDocument(databaseId, col.id, id),
   };
 });
-
-
-
-
 
 export default db;

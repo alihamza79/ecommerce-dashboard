@@ -1,46 +1,32 @@
-import React, { useEffect } from "react";
-import { Navigate, Route } from "react-router-dom";
-import { setAuthorization } from "../helpers/api_helper";
-import { useDispatch } from "react-redux";
+// src/routes/AuthProtected.js
+import React, { useEffect, useState } from "react";
+import { Navigate } from "react-router-dom";
+import { checkAuth } from "../appwrite/Services/authServices";
 
-import { useProfile } from "../Components/Hooks/UserHooks";
+const AuthProtected = ({ children }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-import { logoutUser } from "../slices/auth/login/thunk";
-
-const AuthProtected = (props) =>{
-  const dispatch = useDispatch();
-  const { userProfile, loading, token } = useProfile();
-  
   useEffect(() => {
-    if (userProfile && !loading && token) {
-      setAuthorization(token);
-    } else if (!userProfile && loading && !token) {
-      dispatch(logoutUser());
-    }
-  }, [token, userProfile, loading, dispatch]);
+    const verifyAuth = async () => {
+      const isAuth = await checkAuth(); // Check if a session is valid
+      setIsAuthenticated(isAuth);
+      setLoading(false); // Stop loading after checking
+    };
 
-  /*
-    Navigate is un-auth access protected routes via url
-    */
+    verifyAuth(); // Run the authentication check on component mount
+  }, []);
 
-  if (!userProfile && loading && !token) {
-    return (
-      <Navigate to={{ pathname: "/login", state: { from: props.location } }} />
-    );
+  if (loading) {
+    return <div>Loading...</div>; // Display a loading message or spinner
   }
 
-  return <>{props.children}</>;
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />; // Redirect to login if not authenticated
+  }
+
+  return children; // Render protected content if authenticated
 };
 
-const AccessRoute = ({ component: Component, ...rest }) => {
-  return (
-    <Route
-      {...rest}
-      render={props => {
-        return (<> <Component {...props} /> </>);
-      }}
-    />
-  );
-};
+export default AuthProtected;
 
-export { AuthProtected, AccessRoute };

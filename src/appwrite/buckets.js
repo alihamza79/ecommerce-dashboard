@@ -12,7 +12,7 @@
 
 export const buckets = [
   {
-    id: "66f7add00031d89e3a97",
+    id: "66fbcfb1001a2d8ee6c1",
     name: "images",
   },
   {

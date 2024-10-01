@@ -16,16 +16,16 @@
 
 export const collections = [
   {
-    id: "66f7ac15003402b55efe",
+    id: "66fbcf3e001345e8893b",
     name: "Categories",
   },
   {
-    id: "66f7ab39002fc95b6532",
+    id: "66fbce8b0019104ab7b5",
     name: "Products",
   },
   {
-    id: "66eb1e1e002a318bd33b",
-    name: "UserProfiles",
+    id: "66fbcd5b002c8f6d7df1",
+    name: "Users",
   },
   
 ];

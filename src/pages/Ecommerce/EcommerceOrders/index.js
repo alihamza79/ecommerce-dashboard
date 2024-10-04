@@ -68,9 +68,8 @@ const EcommerceOrders = () => {
     orders, isOrderSuccess, error
   } = useSelector(selectLayoutProperties)
 
-
   const [orderList, setOrderList] = useState([]);
-  const [order, setOrder] = useState([]);
+  const [order, setOrder] = useState(null); // Initialize as null
   const [isExportCSV, setIsExportCSV] = useState(false);
 
   const orderstatus = [
@@ -144,8 +143,8 @@ const EcommerceOrders = () => {
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleteModalMulti, setDeleteModalMulti] = useState(false);
 
-  const onClickDelete = (order) => {
-    setOrder(order);
+  const onClickDelete = (selectedOrder) => {
+    setOrder(selectedOrder);
     setDeleteModal(true);
   };
 
@@ -153,15 +152,13 @@ const EcommerceOrders = () => {
     if (order) {
       dispatch(onDeleteOrder(order._id));
       setDeleteModal(false);
+      toast.success("Order deleted successfully");
     }
   };
 
+  // Ensure orderList is always an array
   useEffect(() => {
-    setOrderList(orders);
-  }, [orders]);
-
-  useEffect(() => {
-    if (!isEmpty(orders)) setOrderList(orders);
+    setOrderList(Array.isArray(orders) ? orders : []);
   }, [orders]);
 
   const toggleTab = (tab, type) => {
@@ -171,7 +168,7 @@ const EcommerceOrders = () => {
       if (type !== "all") {
         filteredOrders = orders.filter((order) => order.status === type);
       }
-      setOrderList(filteredOrders);
+      setOrderList(filteredOrders || []);
     }
   };
 
@@ -216,6 +213,7 @@ const EcommerceOrders = () => {
         // update order
         dispatch(onUpdateOrder(updateOrder));
         validation.resetForm();
+        toast.success("Order updated successfully");
       } else {
         const newOrder = {
           _id: (Math.floor(Math.random() * (30 - 20)) + 20).toString(),
@@ -231,28 +229,19 @@ const EcommerceOrders = () => {
         // save new order
         dispatch(onAddNewOrder(newOrder));
         validation.resetForm();
+        toast.success("Order added successfully");
       }
       toggle();
     },
   });
 
   useEffect(() => {
-    if (orders && !orders.length) {
+    if (Array.isArray(orders) && orders.length === 0) {
       dispatch(onGetOrders());
     }
   }, [dispatch, orders]);
 
-  useEffect(() => {
-    setOrder(orders);
-  }, [orders]);
-
-  useEffect(() => {
-    if (!isEmpty(orders)) {
-      setOrder(orders);
-      setIsEdit(false);
-    }
-  }, [orders]);
-
+  // Remove the incorrect useEffects that set 'order' to 'orders'
 
   const toggle = useCallback(() => {
     if (modal) {
@@ -265,40 +254,27 @@ const EcommerceOrders = () => {
   }, [modal]);
 
   const handleOrderClicks = () => {
-    setOrder("");
+    setOrder(null);
     setIsEdit(false);
     toggle();
   };
 
-  const handleOrderClick = useCallback((arg) => {
-    const order = arg;
+  const handleOrderClick = useCallback((selectedOrder) => {
     setOrder({
-      _id: order._id,
-      orderId: order.orderId,
-      customer: order.customer,
-      product: order.product,
-      orderDate: order.orderDate,
-      ordertime: order.ordertime,
-      amount: order.amount,
-      payment: order.payment,
-      status: order.status
+      _id: selectedOrder._id,
+      orderId: selectedOrder.orderId,
+      customer: selectedOrder.customer,
+      product: selectedOrder.product,
+      orderDate: selectedOrder.orderDate,
+      ordertime: selectedOrder.ordertime,
+      amount: selectedOrder.amount,
+      payment: selectedOrder.payment,
+      status: selectedOrder.status
     });
 
     setIsEdit(true);
     toggle();
   }, [toggle]);
-
-  // Node API 
-  // useEffect(() => {
-  //   if (isOrderCreated) {
-  //     setOrder(null);
-  //     dispatch(onGetOrders());
-  //   }
-  // }, [
-  //   dispatch,
-  //   isOrderCreated,
-  // ]);
-
 
   // Checked All
   const checkedAll = useCallback(() => {
@@ -325,16 +301,17 @@ const EcommerceOrders = () => {
     const checkall = document.getElementById("checkBoxAll");
     selectedCheckBoxDelete.forEach((element) => {
       dispatch(onDeleteOrder(element.value));
-      setTimeout(() => { toast.clearWaitingQueue(); }, 3000);
+      // Optionally, you can collect promises and await all deletions
     });
     checkall.checked = false;
     setIsMultiDeleteButton(false);
+    toast.success("Selected orders deleted successfully");
   };
 
   const deleteCheckbox = () => {
     const ele = document.querySelectorAll(".orderCheckBox:checked");
     ele.length > 0 ? setIsMultiDeleteButton(true) : setIsMultiDeleteButton(false);
-    setSelectedCheckBoxDelete(ele);
+    setSelectedCheckBoxDelete(Array.from(ele)); // Convert NodeList to Array
   };
 
   // Column
@@ -466,7 +443,6 @@ const EcommerceOrders = () => {
     return ((d.getDate() + ' ' + months[d.getMonth()] + ', ' + d.getFullYear() + ", " + h + ":" + d.getMinutes() + " " + ampm).toString());
   };
 
-
   const [date, setDate] = useState(defaultdate());
 
   const dateformate = (e) => {
@@ -475,14 +451,13 @@ const EcommerceOrders = () => {
     let time = dateString[4];
     let H = +time.substr(0, 2);
     let h = (H % 12) || 12;
-    h = (h <= 9) ? h = ("0" + h) : h;
+    h = (h <= 9) ? ("0" + h) : h;
     let ampm = H < 12 ? "AM" : "PM";
     time = h + time.substr(2, 3) + " " + ampm;
 
     const date = dateString[2] + " " + dateString[1] + ", " + dateString[3];
     const orderDate = (date + ", " + time).toString();
     setDate(orderDate);
-
   };
 
   const handleValidDate = date => {
@@ -492,16 +467,16 @@ const EcommerceOrders = () => {
 
   const handleValidTime = (time) => {
     const time1 = new Date(time);
-    const getHour = time1.getUTCHours();
-    const getMin = time1.getUTCMinutes();
-    const getTime = `${getHour}:${getMin}`;
-    var meridiem = "";
+    const getHour = time1.getHours(); // Changed from getUTCHours to getHours
+    const getMin = time1.getMinutes(); // Changed from getUTCMinutes to getMinutes
+    const getTime = `${getHour}:${getMin < 10 ? '0' + getMin : getMin}`;
+    let meridiem = "";
     if (getHour >= 12) {
       meridiem = "PM";
     } else {
       meridiem = "AM";
     }
-    const updateTime = moment(getTime, 'hh:mm').format('hh:mm') + " " + meridiem;
+    const updateTime = moment(getTime, 'HH:mm').format('hh:mm') + " " + meridiem;
     return updateTime;
   };
 
@@ -645,10 +620,10 @@ const EcommerceOrders = () => {
                       </NavLink>
                     </NavItem>
                   </Nav>
-                  {isOrderSuccess && orderList.length ? (
+                  {isOrderSuccess && Array.isArray(orderList) && orderList.length > 0 ? (
                     <TableContainer
                       columns={columns}
-                      data={(orderList || [])}
+                      data={orderList}
                       isGlobalFilter={true}
                       isAddUserList={false}
                       customPageSize={8}
@@ -687,9 +662,6 @@ const EcommerceOrders = () => {
                           className="form-control"
                           placeholder="Enter Order Id"
                           type="text"
-                          validate={{
-                            required: { value: true },
-                          }}
                           onChange={validation.handleChange}
                           onBlur={validation.handleBlur}
                           value={validation.values.orderId || ""}
@@ -716,9 +688,6 @@ const EcommerceOrders = () => {
                           className="form-control"
                           placeholder="Enter Name"
                           type="text"
-                          validate={{
-                            required: { value: true },
-                          }}
                           onChange={validation.handleChange}
                           onBlur={validation.handleBlur}
                           value={validation.values.customer || ""}
@@ -747,12 +716,14 @@ const EcommerceOrders = () => {
                           onChange={validation.handleChange}
                           onBlur={validation.handleBlur}
                           value={
-                            validation.values.product || ""
+                            validation.values.product || "Product"
                           }
                           required>
                           {productname.map((item, key) => (
                             <React.Fragment key={key}>
-                              {item.options.map((item, key) => (<option value={item.value} key={key}>{item.label}</option>))}
+                              {item.options.map((option, idx) => (
+                                <option value={option.value} key={idx}>{option.label}</option>
+                              ))}
                             </React.Fragment>
                           ))}
                         </Input>
@@ -780,8 +751,8 @@ const EcommerceOrders = () => {
                             altFormat: "d M, Y, G:i K",
                             dateFormat: "d M, Y, G:i K",
                           }}
-                          onChange={(e) =>
-                            dateformate(e)
+                          onChange={(selectedDates) =>
+                            dateformate(selectedDates[0])
                           }
                           value={validation.values.orderDate || ""}
                         />
@@ -831,12 +802,14 @@ const EcommerceOrders = () => {
                               onChange={validation.handleChange}
                               onBlur={validation.handleBlur}
                               value={
-                                validation.values.payment || ""
+                                validation.values.payment || "Select Payment"
                               }
                             >
                               {orderpayement.map((item, key) => (
                                 <React.Fragment key={key}>
-                                  {item.options.map((item, key) => (<option value={item.value} key={key}>{item.label}</option>))}
+                                  {item.options.map((option, idx) => (
+                                    <option value={option.value} key={idx}>{option.label}</option>
+                                  ))}
                                 </React.Fragment>
                               ))}
                             </Input>
@@ -865,12 +838,14 @@ const EcommerceOrders = () => {
                           onChange={validation.handleChange}
                           onBlur={validation.handleBlur}
                           value={
-                            validation.values.status || ""
+                            validation.values.status || "Status"
                           }
                         >
                           {orderstatus.map((item, key) => (
                             <React.Fragment key={key}>
-                              {item.options.map((item, key) => (<option value={item.value} key={key}>{item.label}</option>))}
+                              {item.options.map((option, idx) => (
+                                <option value={option.value} key={idx}>{option.label}</option>
+                              ))}
                             </React.Fragment>
                           ))}
                         </Input>
@@ -898,7 +873,7 @@ const EcommerceOrders = () => {
                         <button type="submit" className="btn btn-success">
                           {!!isEdit
                             ? "Update"
-                            : "Add Customer"}
+                            : "Add Order"}
                         </button>
                       </div>
                     </div>
@@ -915,5 +890,3 @@ const EcommerceOrders = () => {
 };
 
 export default EcommerceOrders;
-
-

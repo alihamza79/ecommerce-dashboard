@@ -68,6 +68,7 @@ import EcommerceCart from "../pages/Ecommerce/EcommerceCart";
 import EcommerceCheckout from "../pages/Ecommerce/EcommerceCheckout";
 import EcommerceSellers from "../pages/Ecommerce/EcommerceSellers/index";
 import EcommerceSellerDetail from "../pages/Ecommerce/EcommerceSellers/EcommerceSellerDetail";
+import WholesaleRequests from "../pages/Ecommerce/WholesaleRequests";
 
 // NFT Marketplace Pages
 import Marketplace from "../pages/NFTMarketplace/Marketplace";
@@ -281,6 +282,8 @@ const authProtectedRoutes = [
   { path: "/apps-ecommerce-checkout", component: <EcommerceCheckout /> },
   { path: "/apps-ecommerce-sellers", component: <EcommerceSellers /> },
   { path: "/apps-ecommerce-seller-details", component: <EcommerceSellerDetail /> },
+  { path: "/wholesale-requests", component: <WholesaleRequests /> },
+
 
   { path: "/apps-file-manager", component: <FileManager /> },
   { path: "/apps-todo", component: <ToDoList /> },

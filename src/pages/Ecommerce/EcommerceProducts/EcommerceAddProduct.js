@@ -1,3 +1,5 @@
+// src/components/dashboard/EcommerceAddProduct.jsx
+
 import React, { useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -16,6 +18,7 @@ import {
   FormFeedback,
   Button,
   CardHeader,
+  Alert,
 } from "reactstrap";
 import Select from "react-select";
 import db from "../../../appwrite/Services/dbServices";
@@ -29,20 +32,28 @@ const EcommerceAddProduct = () => {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [categories, setCategories] = useState([]);
   const [productType, setProductType] = useState("retail"); // 'retail' or 'wholesale'
-  const [isOnSale, setIsOnSale] = useState(false); // Toggle state for "On Sale"
+  const [fetchError, setFetchError] = useState(""); // To display category fetch errors
+  const [submitError, setSubmitError] = useState(""); // To display submission errors
 
   // Fetch categories from Appwrite
   useEffect(() => {
     const fetchCategories = async () => {
       try {
         const response = await db.Categories.list();
-        const categoryOptions = response.documents.map((cat) => ({
-          label: cat.name,
-          value: cat.$id,
-        }));
+        console.log("Fetched Categories Response:", response); // Debugging
+        const categoryOptions =
+          (response.documents && Array.isArray(response.documents)
+            ? response.documents
+            : []
+          ).map((cat) => ({
+            label: cat.name,
+            value: cat.$id,
+          }));
         setCategories(categoryOptions);
       } catch (error) {
         console.error("Failed to fetch categories:", error);
+        setFetchError("Failed to fetch categories. Please try again later.");
+        setCategories([]); // Ensure categories is always an array
       }
     };
 
@@ -51,18 +62,36 @@ const EcommerceAddProduct = () => {
 
   // Handle file uploads (for preview, store the selected files in state)
   const handleAcceptedFiles = (files) => {
+    if (!Array.isArray(files)) {
+      console.error("Accepted files is not an array:", files);
+      return;
+    }
+
     const previewFiles = files.map((file) =>
       Object.assign(file, {
         preview: URL.createObjectURL(file),
       })
     );
-    setSelectedFiles([...selectedFiles, ...previewFiles]); // Append new files
+    setSelectedFiles((prevFiles) => [...prevFiles, ...previewFiles]); // Use functional update
+    console.log("Selected Files after drop:", [...selectedFiles, ...previewFiles]); // Debugging
   };
 
   // Remove a selected image
   const removeSelectedFile = (file) => {
-    setSelectedFiles(selectedFiles.filter((f) => f !== file));
+    setSelectedFiles((prevFiles) => prevFiles.filter((f) => f !== file));
+    console.log(
+      "Selected Files after removal:",
+      selectedFiles.filter((f) => f !== file)
+    ); // Debugging
   };
+
+  // Cleanup image previews to avoid memory leaks
+  useEffect(() => {
+    // Revoke the data uris to avoid memory leaks
+    return () => {
+      selectedFiles.forEach((file) => URL.revokeObjectURL(file.preview));
+    };
+  }, [selectedFiles]);
 
   // Formik validation schema
   const validation = useFormik({
@@ -73,32 +102,65 @@ const EcommerceAddProduct = () => {
       stockQuantity: "",
       categoryId: "",
       tags: "",
-      isOnSale: false,
+      isOnSale: false, // Integrated into Formik's state
+      discountPrice: "", // Added discountPrice
     },
     validationSchema: Yup.object({
       name: Yup.string().required("Please enter a product title"),
       price: Yup.number()
         .typeError("Price must be a number")
+        .positive("Price must be a positive number")
         .required("Please enter a product price"),
       stockQuantity: Yup.number()
         .typeError("Stock Quantity must be a number")
+        .integer("Stock Quantity must be an integer")
+        .min(0, "Stock Quantity cannot be negative")
         .required("Please enter the product stock"),
       categoryId: Yup.string().required("Please select a product category"),
+      // Conditionally require discountPrice if isOnSale is true
+      discountPrice: Yup.number().when("isOnSale", (isOnSale, schema) => {
+        return isOnSale
+          ? schema
+              .typeError("Discount Price must be a number")
+              .positive("Discount Price must be a positive number")
+              .required("Please enter a discount price")
+              .max(
+                Yup.ref("price"),
+                "Discount Price must be less than the original price"
+              )
+          : schema.notRequired();
+      }),
       // tags: Yup.string(), // Optional: add validation if needed
       // description: Yup.string(), // Optional: add validation if needed
     }),
-    onSubmit: async (values) => {
+    onSubmit: async (values, { resetForm }) => {
       try {
+        console.log("Form Values on Submit:", values); // Debugging
         let imageIds = [];
 
         // Upload the selected images to Appwrite storage on form submission
         if (selectedFiles.length > 0) {
           imageIds = await Promise.all(
             selectedFiles.map(async (file) => {
-              const storedFile = await storageServices.images.createFile(file);
-              return storedFile.$id; // Store the image ID
+              try {
+                const storedFile = await storageServices.images.createFile(file);
+                if (storedFile && storedFile.$id) {
+                  console.log(`Uploaded File ID: ${storedFile.$id}`); // Debugging
+                  return storedFile.$id; // Store the image ID
+                } else {
+                  throw new Error("Invalid response from image upload.");
+                }
+              } catch (error) {
+                console.error("Image upload error:", error);
+                // Optionally, handle individual file upload errors here
+                return null; // Exclude failed uploads
+              }
             })
           );
+
+          // Filter out any null entries resulting from failed uploads
+          imageIds = imageIds.filter((id) => id !== null);
+          console.log("Uploaded Image IDs:", imageIds); // Debugging
         }
 
         // Prepare the product data to save
@@ -106,21 +168,30 @@ const EcommerceAddProduct = () => {
           name: values.name,
           description: values.description,
           price: parseFloat(values.price),
-          stockQuantity: parseInt(values.stockQuantity),
+          stockQuantity: parseInt(values.stockQuantity, 10),
           categoryId: values.categoryId,
           images: imageIds, // Store the uploaded image IDs
           tags: values.tags
             ? values.tags.split(",").map((tag) => tag.trim())
             : [],
-          isOnSale: isOnSale,
+          isOnSale: values.isOnSale, // Use Formik's isOnSale
+          discountPrice: values.isOnSale
+            ? parseFloat(values.discountPrice)
+            : null, // Include discountPrice if on sale
           isWholesaleProduct: productType === "wholesale",
         };
 
+        console.log("New Product Data:", newProduct); // Debugging
+
         // Save the product to the Appwrite Products collection
         await db.Products.create(newProduct);
+        console.log("Product successfully created."); // Debugging
+        resetForm();
+        setSelectedFiles([]); // Clear selected files
         navigate("/apps-ecommerce-products");
       } catch (error) {
         console.error("Failed to create product:", error);
+        setSubmitError("Failed to create product. Please try again.");
       }
     },
   });
@@ -132,6 +203,13 @@ const EcommerceAddProduct = () => {
         <Row>
           <Col lg={8}>
             <Form onSubmit={validation.handleSubmit}>
+              {/* Display Submission Error */}
+              {submitError && (
+                <Alert color="danger" className="mb-3">
+                  {submitError}
+                </Alert>
+              )}
+
               <Card>
                 <CardBody>
                   {/* Product Type Selection */}
@@ -148,10 +226,7 @@ const EcommerceAddProduct = () => {
                           onChange={() => setProductType("retail")}
                           className="form-check-input"
                         />
-                        <Label
-                          className="form-check-label"
-                          htmlFor="retail"
-                        >
+                        <Label className="form-check-label" htmlFor="retail">
                           Retail
                         </Label>
                       </div>
@@ -165,10 +240,7 @@ const EcommerceAddProduct = () => {
                           onChange={() => setProductType("wholesale")}
                           className="form-check-input"
                         />
-                        <Label
-                          className="form-check-label"
-                          htmlFor="wholesale"
-                        >
+                        <Label className="form-check-label" htmlFor="wholesale">
                           Wholesale
                         </Label>
                       </div>
@@ -209,10 +281,7 @@ const EcommerceAddProduct = () => {
                       editor={ClassicEditor}
                       data={validation.values.description || ""}
                       onChange={(event, editor) => {
-                        validation.setFieldValue(
-                          "description",
-                          editor.getData()
-                        );
+                        validation.setFieldValue("description", editor.getData());
                       }}
                     />
                     {validation.errors.description &&
@@ -235,20 +304,52 @@ const EcommerceAddProduct = () => {
                           onDrop={(acceptedFiles) => {
                             handleAcceptedFiles(acceptedFiles);
                           }}
+                          accept="image/*"
+                          maxSize={5242880} // 5MB
                         >
-                          {({ getRootProps, getInputProps }) => (
-                            <div className="dropzone dz-clickable">
-                              <div
-                                className="dz-message needsclick"
-                                {...getRootProps()}
-                              >
-                                <div className="mb-3 mt-5">
-                                  <i className="display-4 text-muted ri-upload-cloud-2-fill" />
+                          {({
+                            getRootProps,
+                            getInputProps,
+                            isDragActive,
+                            isDragReject,
+                            rejectedFiles,
+                          }) => {
+                            // Ensure rejectedFiles is always an array
+                            const safeRejectedFiles = Array.isArray(rejectedFiles)
+                              ? rejectedFiles
+                              : [];
+                            const isFileTooLarge =
+                              safeRejectedFiles.length > 0 &&
+                              safeRejectedFiles[0].size > 5242880;
+                            return (
+                              <div className="dropzone dz-clickable">
+                                <div
+                                  className="dz-message needsclick"
+                                  {...getRootProps()}
+                                >
+                                  <div className="mb-3 mt-5">
+                                    <i className="display-4 text-muted ri-upload-cloud-2-fill" />
+                                  </div>
+                                  <h5>Drop files here or click to upload.</h5>
+                                  {isDragActive && !isDragReject && (
+                                    <p className="mt-2 text-primary">
+                                      Drop the files here...
+                                    </p>
+                                  )}
+                                  {isDragReject && (
+                                    <p className="mt-2 text-danger">
+                                      Unsupported file type.
+                                    </p>
+                                  )}
+                                  {isFileTooLarge && (
+                                    <p className="mt-2 text-danger">
+                                      File is too large.
+                                    </p>
+                                  )}
                                 </div>
-                                <h5>Drop files here or click to upload.</h5>
                               </div>
-                            </div>
-                          )}
+                            );
+                          }}
                         </Dropzone>
 
                         {/* Image Preview */}
@@ -378,6 +479,13 @@ const EcommerceAddProduct = () => {
 
           {/* Right Side: Product Categories, Tags, On Sale, and Wholesale Options */}
           <Col lg={4}>
+            {/* Display Category Fetch Error */}
+            {fetchError && (
+              <Alert color="danger" className="mb-3">
+                {fetchError}
+              </Alert>
+            )}
+
             {/* Product Categories Container */}
             <Card>
               <CardHeader>
@@ -394,10 +502,11 @@ const EcommerceAddProduct = () => {
                   options={categories}
                   name="categoryId"
                   classNamePrefix="select2-selection form-select"
+                  placeholder="Select a category"
                 />
                 {validation.errors.categoryId &&
                 validation.touched.categoryId ? (
-                  <FormFeedback type="invalid">
+                  <FormFeedback type="invalid" className="d-block">
                     {validation.errors.categoryId}
                   </FormFeedback>
                 ) : null}
@@ -444,8 +553,9 @@ const EcommerceAddProduct = () => {
                     type="checkbox"
                     role="switch"
                     id="isOnSale"
-                    checked={isOnSale}
-                    onChange={() => setIsOnSale(!isOnSale)}
+                    name="isOnSale"
+                    checked={validation.values.isOnSale}
+                    onChange={validation.handleChange}
                   />
                   <Label className="form-check-label" htmlFor="isOnSale">
                     Is On Sale
@@ -453,7 +563,7 @@ const EcommerceAddProduct = () => {
                 </div>
 
                 {/* Discount Price Field */}
-                {isOnSale && (
+                {validation.values.isOnSale && (
                   <div className="mb-3">
                     <Label htmlFor="discountPrice">Discount Price</Label>
                     <Input
@@ -465,7 +575,19 @@ const EcommerceAddProduct = () => {
                       value={validation.values.discountPrice || ""}
                       onBlur={validation.handleBlur}
                       onChange={validation.handleChange}
+                      invalid={
+                        validation.errors.discountPrice &&
+                        validation.touched.discountPrice
+                          ? true
+                          : false
+                      }
                     />
+                    {validation.errors.discountPrice &&
+                    validation.touched.discountPrice ? (
+                      <FormFeedback type="invalid">
+                        {validation.errors.discountPrice}
+                      </FormFeedback>
+                    ) : null}
                   </div>
                 )}
               </CardBody>

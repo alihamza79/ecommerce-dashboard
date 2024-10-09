@@ -11,9 +11,9 @@ import {
   NavItem,
   NavLink,
   Row,
-  TabContent,
-  TabPane,
   Badge,
+  TabContent, // <-- Added import
+  TabPane,    // <-- Added import
 } from "reactstrap";
 import BreadCrumb from "../../../Components/Common/BreadCrumb";
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -83,9 +83,7 @@ const EcommerceProductDetail = () => {
           stockQuantity: parseInt(productResponse.stockQuantity),
           isOnSale: Boolean(productResponse.isOnSale),
           isWholesaleProduct: Boolean(productResponse.isWholesaleProduct),
-          wholesalePrice: productResponse.wholesalePrice
-            ? parseFloat(productResponse.wholesalePrice)
-            : null,
+          // Remove wholesalePrice as it's deprecated
           tags: productResponse.tags || [],
           images: productResponse.images || [],
         };
@@ -130,6 +128,9 @@ const EcommerceProductDetail = () => {
   const handleEdit = () => {
     navigate(`/apps-ecommerce-edit-product/${id}`);
   };
+
+  // Handle deletion (if needed)
+  // You might want to add delete functionality here similar to EcommerceProducts.js
 
   // Loading state
   if (!product) {
@@ -344,17 +345,8 @@ const EcommerceProductDetail = () => {
                               : "secondary",
                           }}
                         />
-                        {/* Wholesale Price */}
-                        {product.isWholesaleProduct && product.wholesalePrice && (
-                          <PricingWidgetList
-                            pricingDetails={{
-                              icon: "ri-money-dollar-circle-line",
-                              label: "Wholesale Price",
-                              labelDetail: `$${product.wholesalePrice.toFixed(2)}`,
-                              color: "primary",
-                            }}
-                          />
-                        )}
+                        {/* Remove Wholesale Price Widget */}
+                        {/* Since wholesalePrice is deprecated, this widget is no longer needed */}
                       </Row>
 
                       {/* Tags */}
@@ -462,13 +454,14 @@ const EcommerceProductDetail = () => {
                                         : "Not Available"}
                                     </td>
                                   </tr>
-                                  {product.isWholesaleProduct &&
+                                  {/* Removed Wholesale Price Row */}
+                                  {/* {product.isWholesaleProduct &&
                                     product.wholesalePrice && (
                                       <tr>
                                         <th scope="row">Wholesale Price</th>
                                         <td>${product.wholesalePrice.toFixed(2)}</td>
                                       </tr>
-                                    )}
+                                    )} */}
                                   <tr>
                                     <th scope="row">Tags</th>
                                     <td>

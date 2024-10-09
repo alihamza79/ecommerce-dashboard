@@ -28,7 +28,7 @@ const EcommerceAddProduct = () => {
   const navigate = useNavigate();
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [isWholesale, setIsWholesale] = useState(false);
+  const [productType, setProductType] = useState("retail"); // 'retail' or 'wholesale'
   const [isOnSale, setIsOnSale] = useState(false); // Toggle state for "On Sale"
 
   // Fetch categories from Appwrite
@@ -70,19 +70,22 @@ const EcommerceAddProduct = () => {
       name: "",
       description: "",
       price: "",
-      discountPrice: "",
       stockQuantity: "",
       categoryId: "",
       tags: "",
       isOnSale: false,
-      isWholesaleProduct: false,
-      wholesalePrice: "",
     },
     validationSchema: Yup.object({
-      name: Yup.string().required("Please Enter a Product Title"),
-      price: Yup.number().required("Please Enter a Product Price"),
-      stockQuantity: Yup.number().required("Please Enter the Product Stock"),
-      categoryId: Yup.string().required("Please select a Product Category"),
+      name: Yup.string().required("Please enter a product title"),
+      price: Yup.number()
+        .typeError("Price must be a number")
+        .required("Please enter a product price"),
+      stockQuantity: Yup.number()
+        .typeError("Stock Quantity must be a number")
+        .required("Please enter the product stock"),
+      categoryId: Yup.string().required("Please select a product category"),
+      // tags: Yup.string(), // Optional: add validation if needed
+      // description: Yup.string(), // Optional: add validation if needed
     }),
     onSubmit: async (values) => {
       try {
@@ -103,18 +106,14 @@ const EcommerceAddProduct = () => {
           name: values.name,
           description: values.description,
           price: parseFloat(values.price),
-          discountPrice: values.discountPrice
-            ? parseFloat(values.discountPrice)
-            : null,
           stockQuantity: parseInt(values.stockQuantity),
           categoryId: values.categoryId,
           images: imageIds, // Store the uploaded image IDs
-          tags: values.tags.split(",").map((tag) => tag.trim()),
+          tags: values.tags
+            ? values.tags.split(",").map((tag) => tag.trim())
+            : [],
           isOnSale: isOnSale,
-          isWholesaleProduct: isWholesale,
-          wholesalePrice: isWholesale
-            ? parseFloat(values.wholesalePrice)
-            : null,
+          isWholesaleProduct: productType === "wholesale",
         };
 
         // Save the product to the Appwrite Products collection
@@ -135,6 +134,47 @@ const EcommerceAddProduct = () => {
             <Form onSubmit={validation.handleSubmit}>
               <Card>
                 <CardBody>
+                  {/* Product Type Selection */}
+                  <div className="mb-3">
+                    <Label className="form-label">Product Type</Label>
+                    <div>
+                      <div className="form-check form-check-inline">
+                        <Input
+                          type="radio"
+                          name="productType"
+                          id="retail"
+                          value="retail"
+                          checked={productType === "retail"}
+                          onChange={() => setProductType("retail")}
+                          className="form-check-input"
+                        />
+                        <Label
+                          className="form-check-label"
+                          htmlFor="retail"
+                        >
+                          Retail
+                        </Label>
+                      </div>
+                      <div className="form-check form-check-inline">
+                        <Input
+                          type="radio"
+                          name="productType"
+                          id="wholesale"
+                          value="wholesale"
+                          checked={productType === "wholesale"}
+                          onChange={() => setProductType("wholesale")}
+                          className="form-check-input"
+                        />
+                        <Label
+                          className="form-check-label"
+                          htmlFor="wholesale"
+                        >
+                          Wholesale
+                        </Label>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Product Title */}
                   <div className="mb-3">
                     <Label className="form-label" htmlFor="product-title-input">
@@ -263,12 +303,16 @@ const EcommerceAddProduct = () => {
                   <Row>
                     <Col lg={6}>
                       <div className="mb-3">
-                        <Label className="form-label">Price</Label>
+                        <Label className="form-label">
+                          {productType === "wholesale" ? "Wholesale Price" : "Price"}
+                        </Label>
                         <Input
                           type="number"
                           className="form-control"
                           name="price"
-                          placeholder="Enter price"
+                          placeholder={`Enter ${
+                            productType === "wholesale" ? "wholesale" : "retail"
+                          } price`}
                           value={validation.values.price || ""}
                           onBlur={validation.handleBlur}
                           onChange={validation.handleChange}
@@ -290,12 +334,18 @@ const EcommerceAddProduct = () => {
                   <Row>
                     <Col lg={6}>
                       <div className="mb-3">
-                        <Label className="form-label">Stock Quantity</Label>
+                        <Label className="form-label">
+                          {productType === "wholesale"
+                            ? "Wholesale Stock Quantity"
+                            : "Stock Quantity"}
+                        </Label>
                         <Input
                           type="number"
                           className="form-control"
                           name="stockQuantity"
-                          placeholder="Enter stock quantity"
+                          placeholder={`Enter ${
+                            productType === "wholesale" ? "wholesale" : "retail"
+                          } stock quantity`}
                           value={validation.values.stockQuantity || ""}
                           onBlur={validation.handleBlur}
                           onChange={validation.handleChange}
@@ -362,7 +412,7 @@ const EcommerceAddProduct = () => {
               <CardBody>
                 <Input
                   className="form-control"
-                  placeholder="Enter tags"
+                  placeholder="Enter tags separated by commas"
                   type="text"
                   name="tags"
                   value={validation.values.tags || ""}
@@ -403,61 +453,21 @@ const EcommerceAddProduct = () => {
                 </div>
 
                 {/* Discount Price Field */}
-                <div className="mb-3">
-                  <Label htmlFor="discountPrice">Discount Price </Label>
-                  <Input
-                    type="number"
-                    className="form-control"
-                    id="discountPrice"
-                    placeholder="Enter discount price"
-                    name="discountPrice"
-                    value={validation.values.discountPrice || ""}
-                    onBlur={validation.handleBlur}
-                    onChange={validation.handleChange}
-                    disabled={!isOnSale} // Disabled when "On Sale" is off
-                  />
-                </div>
-              </CardBody>
-            </Card>
-
-            {/* Wholesale Options Container */}
-            <Card>
-              <CardHeader>
-                <h5 className="card-title mb-0">Wholesale Options</h5>
-              </CardHeader>
-              <CardBody>
-                <div className="form-check form-switch mb-3">
-                  <Input
-                    className="form-check-input"
-                    type="checkbox"
-                    role="switch"
-                    id="isWholesaleProduct"
-                    checked={isWholesale}
-                    onChange={() => setIsWholesale(!isWholesale)}
-                  />
-                  <Label
-                    className="form-check-label"
-                    htmlFor="isWholesaleProduct"
-                  >
-                    Is Wholesale Product
-                  </Label>
-                </div>
-
-                {/* Wholesale Price field enabled/disabled based on wholesale switch */}
-                <div className="mb-3">
-                  <Label htmlFor="wholesalePrice">Wholesale Price</Label>
-                  <Input
-                    type="number"
-                    className="form-control"
-                    id="wholesalePrice"
-                    placeholder="Enter wholesale price"
-                    name="wholesalePrice"
-                    value={validation.values.wholesalePrice || ""}
-                    onBlur={validation.handleBlur}
-                    onChange={validation.handleChange}
-                    disabled={!isWholesale}
-                  />
-                </div>
+                {isOnSale && (
+                  <div className="mb-3">
+                    <Label htmlFor="discountPrice">Discount Price</Label>
+                    <Input
+                      type="number"
+                      className="form-control"
+                      id="discountPrice"
+                      placeholder="Enter discount price"
+                      name="discountPrice"
+                      value={validation.values.discountPrice || ""}
+                      onBlur={validation.handleBlur}
+                      onChange={validation.handleChange}
+                    />
+                  </div>
+                )}
               </CardBody>
             </Card>
           </Col>

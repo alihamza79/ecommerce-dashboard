@@ -1,3 +1,5 @@
+// src/pages/Ecommerce/EcommerceProducts.js
+
 import React, { useEffect, useState, useMemo } from "react";
 import {
   Container,
@@ -100,6 +102,9 @@ const EcommerceProducts = () => {
 
   // Function to get image URL
   const getImageURL = (imageId) => {
+    // Implement this function based on your storage service.
+    // For example, if using Appwrite's storage service, construct the URL accordingly.
+    // Placeholder implementation:
     return storageServices.images.getFilePreview(imageId);
   };
 
@@ -265,7 +270,7 @@ const EcommerceProducts = () => {
                   ) : (
                     <img
                       src="/path/to/default-image.jpg" // Provide a default image path
-                      alt=""
+                      alt="Default"
                       className="img-fluid d-block"
                     />
                   )}
@@ -281,7 +286,7 @@ const EcommerceProducts = () => {
                   </Link>
                 </h5>
                 <p className="text-muted mb-0">
-                  Category :{" "}
+                  Category:{" "}
                   <span className="fw-medium">
                     {getCategoryName(cell.row.original.categoryId)}
                   </span>
@@ -292,9 +297,24 @@ const EcommerceProducts = () => {
         ),
       },
       {
+        header: "Type",
+        accessorKey: "isWholesaleProduct",
+        enableColumnFilter: false,
+        cell: (cell) => (
+          <span
+            className={`badge ${
+              cell.getValue() ? "bg-success" : "bg-primary"
+            }`}
+          >
+            {cell.getValue() ? "Wholesale" : "Retail"}
+          </span>
+        ),
+      },
+      {
         header: "Stock",
         accessorKey: "stockQuantity",
         enableColumnFilter: false,
+        cell: (cell) => <>{cell.getValue()}</>,
       },
       {
         header: "Price",

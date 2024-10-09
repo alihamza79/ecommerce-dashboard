@@ -17,5 +17,9 @@ export const collections = [
     id: "66fe4b48002f9ddceaa5",
     name: "WholesaleAccountRequests",
   },
+  {
+    id: "6706c652000f666e140f",
+    name: "contacts",
+  },
   
 ];

@@ -248,7 +248,7 @@ import EcommerceEditProduct from "../pages/Ecommerce/EcommerceProducts/Ecommerce
 import EcommerceCategories from "../pages/Ecommerce/EcommerceCategory/EcommerceCategories";
 import EcommerceAddCategory from "../pages/Ecommerce/EcommerceCategory/EcommerceAddCategory";
 import EcommerceEditCategory from "../pages/Ecommerce/EcommerceCategory/EcommerceEditCategory";
-
+import ContactList from "../pages/Ecommerce/Contactlist";
 const authProtectedRoutes = [
   { path: "/dashboard-analytics", component: <DashboardAnalytics /> },
   { path: "/dashboard-crm", component: <DashboardCrm /> },
@@ -265,6 +265,8 @@ const authProtectedRoutes = [
   { path: "/apps-ecommerce-product-details", component: <EcommerceProductDetail /> },
   { path: "/apps-ecommerce-add-product", component: <EcommerceAddProduct /> },
   { path: "/apps-ecommerce-edit-product/:productId", component: <EcommerceEditProduct /> },
+  { path: "/contactlist", component: <ContactList /> },
+
 
 
   { path: "/apps-ecommerce-categories", component: <EcommerceCategories /> },

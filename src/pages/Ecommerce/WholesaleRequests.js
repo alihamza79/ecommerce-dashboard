@@ -28,12 +28,16 @@ const WholesaleRequests = () => {
   const [rejectModal, setRejectModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
-  const [searchTerm, setSearchTerm] = useState(''); // New state variable for search term
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Fetch wholesale requests and user data
   const fetchWholesaleRequests = async () => {
     try {
-      const response = await db.WholesaleAccountRequests.list();
+      // Fetch only pending and approved requests (exclude rejected requests)
+      const response = await db.WholesaleAccountRequests.list([
+        Query.notEqual('status', 'rejected'),
+      ]);
+
       setRequests(response.documents);
 
       // Fetch user details for each request
@@ -98,20 +102,14 @@ const WholesaleRequests = () => {
     setRejectModal(true);
   };
 
-  // Confirm rejection and update the request status
+  // Confirm rejection, update the request status, and handle the rejection reason
   const confirmReject = async () => {
     try {
-      const updateData = {
+      // Update the request status and set the rejection reason
+      await db.WholesaleAccountRequests.update(selectedRequest.$id, {
         status: 'rejected',
-      };
-
-      // If the admin provided a rejection reason, update the 'reason' field
-      if (rejectReason) {
-        updateData.reason = rejectReason;
-      }
-
-      // Update the request status
-      await db.WholesaleAccountRequests.update(selectedRequest.$id, updateData);
+        rejectionReason: rejectReason || '',
+      });
 
       // Update the user's isWholesaleApproved property to false
       const userId = selectedRequest.userId;
@@ -189,9 +187,6 @@ const WholesaleRequests = () => {
             case 'approved':
               badgeClass = 'bg-success text-white';
               break;
-            case 'rejected':
-              badgeClass = 'bg-danger text-white';
-              break;
             default:
               badgeClass = 'bg-secondary text-white';
           }
@@ -211,7 +206,7 @@ const WholesaleRequests = () => {
                 size="sm"
                 className="me-2"
                 onClick={() => handleApprove(request)}
-                disabled={request.status === 'approved'}
+                disabled={request.status === 'approved'} // Disable if already approved
               >
                 Approve
               </Button>
@@ -219,7 +214,6 @@ const WholesaleRequests = () => {
                 color="danger"
                 size="sm"
                 onClick={() => handleReject(request)}
-                disabled={request.status === 'rejected'}
               >
                 Reject
               </Button>

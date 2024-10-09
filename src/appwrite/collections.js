@@ -21,5 +21,8 @@ export const collections = [
     id: "6706c652000f666e140f",
     name: "contacts",
   },
-  
+  {
+    id: "6706f142003927064ec8",
+    name: "blogs",
+  },
 ];

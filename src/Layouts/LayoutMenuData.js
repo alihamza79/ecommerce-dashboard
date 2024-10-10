@@ -300,7 +300,7 @@ const Navdata = () => {
                         { id: 7, label: "Order Details", link: "/apps-ecommerce-order-details", parentId: "apps" },
                         { id: 14, label: "Blog List", link: "/bloglist", parentId: "apps" },
                         { id: 15, label: "Add Blog", link: "/addblog", parentId: "apps" },
-
+                        { id: 15, label: "Hero Section", link: "/herosectionlist", parentId: "apps" },
                         { id: 8, label: "Customers", link: "/apps-ecommerce-customers", parentId: "apps" },
                         { id: 9, label: "Shopping Cart", link: "/apps-ecommerce-cart", parentId: "apps" },
                         { id: 10, label: "Checkout", link: "/apps-ecommerce-checkout", parentId: "apps" },

@@ -252,6 +252,8 @@ import ContactList from "../pages/Ecommerce/Contactlist";
 import BlogAdd from "../pages/Ecommerce/Blog/BlogAdd";
 import BlogEdit from "../pages/Ecommerce/Blog/BlogEdit";
 import BlogsList from "../pages/Ecommerce/Blog/BlogsList";
+import HeroSectionList from "../pages/Ecommerce/HeroSection/HeroSectionList";
+import HeroSectionEdit from "../pages/Ecommerce/HeroSection/HeroSectionEdit";
 const authProtectedRoutes = [
   { path: "/dashboard-analytics", component: <DashboardAnalytics /> },
   { path: "/dashboard-crm", component: <DashboardCrm /> },
@@ -272,6 +274,10 @@ const authProtectedRoutes = [
   { path: "/addblog", component: <BlogAdd /> },
   { path: "/editblog/:id", component: <BlogEdit /> },
   { path: "/bloglist", component: <BlogsList /> },
+  { path: "/herosectionlist", component: <HeroSectionList /> },
+  { path: "/editherosection/:id", component: <HeroSectionEdit /> },
+
+
 
 
 

@@ -29,4 +29,8 @@ export const collections = [
     id: "670760c60037a5149b81",
     name: "heroSection",
   },
+  {
+    id: "67076d3400357d0fb6dc",
+    name: "subscribers",
+  },
 ];

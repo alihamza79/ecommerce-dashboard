@@ -254,6 +254,7 @@ import BlogEdit from "../pages/Ecommerce/Blog/BlogEdit";
 import BlogsList from "../pages/Ecommerce/Blog/BlogsList";
 import HeroSectionList from "../pages/Ecommerce/HeroSection/HeroSectionList";
 import HeroSectionEdit from "../pages/Ecommerce/HeroSection/HeroSectionEdit";
+import SubscribersList from "../pages/Ecommerce/Subscribers/SubscribersList";
 const authProtectedRoutes = [
   { path: "/dashboard-analytics", component: <DashboardAnalytics /> },
   { path: "/dashboard-crm", component: <DashboardCrm /> },
@@ -276,6 +277,8 @@ const authProtectedRoutes = [
   { path: "/bloglist", component: <BlogsList /> },
   { path: "/herosectionlist", component: <HeroSectionList /> },
   { path: "/editherosection/:id", component: <HeroSectionEdit /> },
+  { path: "/subscribers", component: <SubscribersList /> },
+
 
 
 

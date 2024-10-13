@@ -1,21 +1,39 @@
 import { account } from "../config";
-
+import db from './dbServices'; // Make sure this path is correct
+import { Query } from "appwrite";
 export async function registerUser(username, email, password) {
   const user = await account.create("unique()", email, password, username);
   localStorage.setItem("authToken", user.$id);
   return user;
 }
 
+
 export const signIn = async (email, password) => {
   try {
+    // Check if the user exists in the 'Users' collection by matching userId with the provided email
+    const users = await db.Users.list([Query.equal('email', email)]);
+
+    // Check if the user is restricted or should not be allowed to log in
+    if (users.total > 0) {
+      const existingUser = users.documents[0];
+      if (existingUser.userId) { // Check based on userId or any other logic
+        throw new Error("User is not allowed to log in.");
+      }
+    }
+
+    // If the check passes, proceed to create the session
     const session = await account.createEmailPasswordSession(email, password);
-    localStorage.setItem("authToken", session.$id); // Store the session ID
+
+    // Store the session ID in localStorage
+    localStorage.setItem("authToken", session.$id); 
     return session;
+
   } catch (error) {
     console.error("Login error:", error); // Log the error details
-    throw error;
+    throw error; // Re-throw the error to handle it in the calling function
   }
 };
+
 
 export const signOutUser = async () => {
   try {

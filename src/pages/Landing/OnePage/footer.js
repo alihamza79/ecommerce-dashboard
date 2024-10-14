@@ -68,7 +68,7 @@ const Footer = () => {
 
                             <div>
                                 <p className="copy-rights mb-0">
-                                    {new Date().getFullYear()} © Velzon - Themesbrand
+                                    {new Date().getFullYear()} © SYNTAX
                                 </p>
                             </div>
                         </Col>

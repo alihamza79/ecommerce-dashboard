@@ -1,7 +1,7 @@
-import { createAsyncThunk } from "@reduxjs/toolkit";
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-
+import { createAsyncThunk } from "@reduxjs/toolkit";
+import db from '../../appwrite/Services/dbServices';
 //Include Both Helper File with needed methods
 import {
   getProducts as getProductsApi,
@@ -28,14 +28,65 @@ export const getProducts = createAsyncThunk("ecommerce/getProducts", async () =>
   }
 });
 
-export const getOrders = createAsyncThunk("ecommerce/getOrders", async () => {
-  try {
-    const response = getOrdersApi();
-    return response;
-  } catch (error) {
-    return error;
+
+// src/slices/thunks.js
+export const getOrders = createAsyncThunk(
+  "ecommerce/getOrders",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await db.Orders.list(); // Fetch all orders
+      return response.documents; // Appwrite returns documents in 'documents' field
+    } catch (error) {
+      // Extract meaningful error message
+      const errorMessage =
+        (error.response && error.response.data && error.response.data.message) ||
+        error.message ||
+        "Failed to fetch orders.";
+      console.error("getOrders error:", error); // Log the error for debugging
+      return rejectWithValue(errorMessage);
+    }
   }
-});
+);
+
+// Thunk to update an order
+export const updateOrder = createAsyncThunk(
+  "ecommerce/updateOrder",
+  async (order, { rejectWithValue }) => {
+    try {
+      const updatedOrder = await db.Orders.update(order._id, {
+        ...order,
+        updatedAt: new Date().toISOString(),
+      });
+      return updatedOrder;
+    } catch (error) {
+      const errorMessage =
+        (error.response && error.response.data && error.response.data.message) ||
+        error.message ||
+        "Failed to update order.";
+      console.error("updateOrder error:", error); // Log the error
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// Thunk to delete an order
+export const deleteOrder = createAsyncThunk(
+  "ecommerce/deleteOrder",
+  async (orderId, { rejectWithValue }) => {
+    try {
+      await db.Orders.delete(orderId);
+      return orderId;
+    } catch (error) {
+      const errorMessage =
+        (error.response && error.response.data && error.response.data.message) ||
+        error.message ||
+        "Failed to delete order.";
+      console.error("deleteOrder error:", error); // Log the error
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
 
 export const getSellers = createAsyncThunk("ecommerce/getSellers", async () => {
   try {
@@ -66,17 +117,7 @@ export const deleteProducts = createAsyncThunk("ecommerce/deleteProducts", async
   }
 });
 
-export const updateOrder = createAsyncThunk("ecommerce/updateOrder", async (order) => {
-  try {
-    const response = updateOrderApi(order);
-    const data = await response;
-    toast.success("Order Updateded Successfully", { autoClose: 3000 });
-    return data;
-  } catch (error) {
-    toast.error("Order Updateded Failed", { autoClose: 3000 });
-    return error;
-  }
-});
+
 
 export const addNewProduct = createAsyncThunk("ecommerce/addNewProduct", async (product) => {
   try {
@@ -103,16 +144,7 @@ export const updateProduct = createAsyncThunk("ecommerce/updateProduct", async (
   }
 });
 
-export const deleteOrder = createAsyncThunk("ecommerce/deleteOrder", async (order) => {
-  try {
-    const response = deleteOrderApi(order);
-    toast.success("Order Deleted Successfully", { autoClose: 3000 });
-    return { order, ...response };
-  } catch (error) {
-    toast.error("Order Deleted Failed", { autoClose: 3000 });
-    return error;
-  }
-});
+
 
 export const addNewOrder = createAsyncThunk("ecommerce/addNewOrder", async (order) => {
   try {

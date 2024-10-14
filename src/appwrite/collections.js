@@ -33,4 +33,16 @@ export const collections = [
     id: "67076d3400357d0fb6dc",
     name: "subscribers",
   },
+  {
+    id: "67076d3400357d0fb6dc",
+    name: "subscribers",
+  },
+  {
+    id: "670a4d9700228b9457e2",
+    name: "OrderItems",
+  },
+  {
+    id: "670a4c59001e6516e088",
+    name: "Orders",
+  },
 ];

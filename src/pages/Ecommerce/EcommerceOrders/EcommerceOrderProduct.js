@@ -1,50 +1,54 @@
-import React from "react";
+// src/components/EcommerceOrderProduct.js
 
-const EcommerceOrderProduct = (props) => {
+import React from "react";
+import { Link } from "react-router-dom";
+import storageServices from "../../../appwrite/Services/storageServices"; // Adjust the path as necessary
+
+const EcommerceOrderProduct = ({ item, productsMap }) => {
+  const product = productsMap[item.productId];
+
+  // Function to get image URL
+  const getImageURL = (imageId) => {
+    // Implement this based on your storage service.
+    // For Appwrite's storage service, the URL might look like:
+    // https://[APPWRITE_ENDPOINT]/v1/storage/buckets/[BUCKET_ID]/files/[FILE_ID]/view?project=[PROJECT_ID]
+    // Adjust accordingly based on your setup.
+    return storageServices.images.getFilePreview(imageId);
+  };
+
   return (
-    <React.Fragment>
-      <tr>
-        <td>
-          <div className="d-flex">
-            <div className="flex-shrink-0 avatar-md bg-light rounded p-1">
-              <img
-                src={props.product.img}
-                alt=""
-                className="img-fluid d-block"
-              />
-            </div>
-            <div className="flex-grow-1 ms-3">
-              <h5 className="fs-15">
-                <a
-                  href="apps-ecommerce-product-details"
-                  className="link-primary"
-                >
-                  {props.product.name}
-                </a>
-              </h5>
-              <p className="text-muted mb-0">
-                Color: <span className="fw-medium">{props.product.color}</span>
-              </p>
-              <p className="text-muted mb-0">
-                Size: <span className="fw-medium">{props.product.size}</span>
-              </p>
-            </div>
+    <tr>
+      <td>
+        <div className="d-flex">
+          <div className="flex-shrink-0 avatar-md bg-light rounded p-1">
+            <img
+              src={
+                product?.images && product.images.length > 0
+                  ? getImageURL(product.images[0])
+                  : "/assets/images/products/default-product.jpg" // Ensure a default product image exists
+              }
+              alt={product?.name || "Product Image"}
+              className="img-fluid d-block"
+            />
           </div>
-        </td>
-        <td>{props.product.price}</td>
-        <td>{props.product.quantity}</td>
-        <td>
-          <div className="text-warning fs-15">
-            <i className="ri-star-fill"></i>
-            <i className="ri-star-fill"></i>
-            <i className="ri-star-fill"></i>
-            <i className="ri-star-fill"></i>
-            <i className="ri-star-half-fill"></i>
+          <div className="flex-grow-1 ms-3">
+            <h5 className="fs-15">
+              <Link
+                to={`/dashboard/products/${item.productId}`}
+                className="link-primary"
+              >
+                {product?.name || "N/A"}
+              </Link>
+            </h5>
+            {/* Add more details if needed, such as variant */}
           </div>
-        </td>
-        <td className="fw-medium text-end">{props.product.amount}</td>
-      </tr>
-    </React.Fragment>
+        </div>
+      </td>
+      <td>${parseFloat(item.price).toFixed(2)}</td>
+      <td>{item.quantity}</td>
+      {/* Removed "Rating" Column */}
+      <td className="fw-medium text-end">${(item.price * item.quantity).toFixed(2)}</td>
+    </tr>
   );
 };
 

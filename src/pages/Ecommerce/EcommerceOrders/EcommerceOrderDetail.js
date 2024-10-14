@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+// src/components/EcommerceOrderDetail.js
+
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Card,
   CardBody,
@@ -6,53 +8,396 @@ import {
   Container,
   Row,
   CardHeader,
-  Collapse
+  Collapse,
+  Label,
+  Input,
+  FormFeedback,
+  Button,
+  Modal,
+  ModalHeader,
+  ModalBody,
+  Form,
 } from "reactstrap";
 
 import classnames from "classnames";
-import { Link } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 
 import BreadCrumb from "../../../Components/Common/BreadCrumb";
-import { productDetails } from "../../../common/data/ecommerce";
+import DeleteModal from "../../../Components/Common/DeleteModal";
+import Loader from "../../../Components/Common/Loader";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+
+import ExportCSVModal from "../../../Components/Common/ExportCSVModal";
+
+import { useFormik } from "formik";
+import * as Yup from "yup";
+
+import moment from "moment"; // Ensure moment is installed: npm install moment
+
+// Import Appwrite services
+import db from "../../../appwrite/Services/dbServices"; // Adjust the path as necessary
+import { Query } from "appwrite"; // Import Query separately
+
+// Import the EcommerceOrderProduct component
 import EcommerceOrderProduct from "./EcommerceOrderProduct";
-import avatar3 from "../../../assets/images/users/avatar-3.jpg";
 
-const EcommerceOrderDetail = (props) => {
-  const [col1, setcol1] = useState(true);
-  const [col2, setcol2] = useState(true);
-  const [col3, setcol3] = useState(true);
+const EcommerceOrderDetail = () => {
+  const { orderId } = useParams(); // Assuming orderId is passed via route parameters
+  const navigate = useNavigate(); // For navigation after deletion
 
-  function togglecol1() {
-    setcol1(!col1);
+  // State Management
+  const [order, setOrder] = useState(null);
+  const [orderItems, setOrderItems] = useState([]);
+  const [productsMap, setProductsMap] = useState({}); // Map productId to product details
+  const [usersMap, setUsersMap] = useState({}); // Map userId to userName
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const [modal, setModal] = useState(false);
+
+  const [selectedOrder, setSelectedOrder] = useState(null); // Currently selected order
+
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [deleteModalMulti, setDeleteModalMulti] = useState(false);
+
+  const [selectedCheckBoxDelete, setSelectedCheckBoxDelete] = useState([]);
+  const [isMultiDeleteButton, setIsMultiDeleteButton] = useState(false);
+
+  const [isExportCSV, setIsExportCSV] = useState(false);
+
+  // Define options for order status
+  const orderStatusOptions = [
+    { label: "Pending", value: "Pending" },
+    { label: "In Progress", value: "Inprogress" },
+    { label: "Pickups", value: "Pickups" },
+    { label: "Returns", value: "Returns" },
+    { label: "Delivered", value: "Delivered" },
+    { label: "Cancelled", value: "Cancelled" },
+  ];
+
+  // Toggle Modal
+  const toggleModal = () => {
+    setModal(!modal);
+    if (modal) {
+      setSelectedOrder(null);
+      formik.resetForm();
+    }
+  };
+
+  // Handle Delete Order Click
+  const handleDeleteOrderClick = (order) => {
+    setSelectedOrder(order);
+    setDeleteModal(true);
+  };
+
+  // Confirm Delete Order
+  const confirmDeleteOrder = async () => {
+    if (!selectedOrder) return;
+    setLoading(true);
+    try {
+      // Assuming 'Orders' is the collection name and correctly mapped in dbServices.js
+      await db.Orders.delete(selectedOrder.$id);
+      toast.success("Order deleted successfully", { autoClose: 3000 });
+      navigate("/dashboard/orders"); // Redirect to orders list page
+    } catch (err) {
+      console.error("Delete Order Error:", err);
+      const errorMessage =
+        (err.response && err.response.data && err.response.data.message) ||
+        err.message ||
+        "Failed to delete order.";
+      setError(errorMessage);
+      toast.error(errorMessage, { autoClose: 5000 });
+    } finally {
+      setLoading(false);
+      setDeleteModal(false);
+      setSelectedOrder(null);
+    }
+  };
+
+  // Fetch Order Details
+  const fetchOrderDetails = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Fetch Order
+      const orderResponse = await db.Orders.get(orderId);
+      setOrder(orderResponse);
+
+      // Fetch OrderItems
+      const orderItemsResponse = await db.OrderItems.list([
+        Query.equal("orderId", [orderId]), // Corrected Query.equal usage
+      ]);
+      setOrderItems(orderItemsResponse.documents); // Extract documents array
+
+      // Extract unique productIds
+      const productIds = orderItemsResponse.documents.map((item) => item.productId);
+      const uniqueProductIds = [...new Set(productIds)];
+
+      // Fetch Products if there are any productIds
+      if (uniqueProductIds.length > 0) {
+        const productsResponse = await db.Products.list([
+          Query.equal("$id", uniqueProductIds), // Corrected attribute to "$id"
+        ]);
+        const productsMapLocal = {};
+        productsResponse.documents.forEach((product) => {
+          productsMapLocal[product.$id] = product; // Store the entire product object
+        });
+        setProductsMap(productsMapLocal);
+      }
+
+      // Fetch User
+      // Corrected Query to match 'userId' field
+      const usersResponse = await db.Users.list([
+        Query.equal("userId", [orderResponse.userId]),
+      ]);
+
+      if (usersResponse.documents.length > 0) {
+        const user = usersResponse.documents[0];
+        setUsersMap({ [user.userId]: user.name });
+      } else {
+        setUsersMap({}); // User not found
+      }
+    } catch (err) {
+      console.error("Fetch Order Details Error:", err);
+      const errorMessage =
+        (err.response && err.response.data && err.response.data.message) ||
+        err.message ||
+        "Failed to fetch order details.";
+      setError(errorMessage);
+      toast.error(errorMessage, { autoClose: 5000 });
+    } finally {
+      setLoading(false);
+    }
+  }, [orderId]);
+
+  useEffect(() => {
+    fetchOrderDetails();
+  }, [fetchOrderDetails]);
+
+  // Handle Select All Checkbox
+  const handleSelectAll = () => {
+    const checkAll = document.getElementById("checkBoxAll");
+    const checkboxes = document.querySelectorAll(".orderCheckBox");
+    checkboxes.forEach((checkbox) => {
+      checkbox.checked = checkAll.checked;
+    });
+    handleCheckboxChange();
+  };
+
+  // Handle Individual Checkbox Change
+  const handleCheckboxChange = () => {
+    const selected = Array.from(
+      document.querySelectorAll(".orderCheckBox:checked")
+    ).map((checkbox) => checkbox.value);
+    setSelectedCheckBoxDelete(selected);
+    setIsMultiDeleteButton(selected.length > 0);
+  };
+
+  // Formik for Edit Order Form
+  const formik = useFormik({
+    enableReinitialize: true,
+    initialValues: selectedOrder
+      ? {
+          // Only include deliveryStatus in edit mode
+          status: selectedOrder.orderStatus,
+        }
+      : {},
+    validationSchema: Yup.object({
+      status: Yup.string().required("Please select Delivery Status"),
+    }),
+    onSubmit: async (values, { setSubmitting }) => {
+      if (selectedOrder) {
+        // Only update the delivery status
+        const updatedOrder = {
+          orderStatus: values.status,
+          updatedAt: new Date().toISOString(),
+        };
+
+        setLoading(true);
+        try {
+          await db.Orders.update(selectedOrder.$id, updatedOrder);
+          // Update local state
+          setOrder((prevOrder) => ({ ...prevOrder, ...updatedOrder }));
+          toast.success("Order updated successfully", { autoClose: 3000 });
+          toggleModal();
+        } catch (err) {
+          console.error("Update Order Error:", err);
+          const errorMessage =
+            (err.response && err.response.data && err.response.data.message) ||
+            err.message ||
+            "Failed to update order.";
+          setError(errorMessage);
+          toast.error(errorMessage, { autoClose: 5000 });
+        } finally {
+          setLoading(false);
+          setSubmitting(false);
+        }
+      }
+    },
+  });
+
+  // Calculate Total Amount
+  const totalAmount = useMemo(() => {
+    return orderItems
+      .reduce((acc, item) => acc + item.price * item.quantity, 0)
+      .toFixed(2);
+  }, [orderItems]);
+
+  // Define table columns based on Orders schema
+  const columns = useMemo(
+    () => [
+      {
+        header: (
+          <input
+            type="checkbox"
+            id="checkBoxAll"
+            className="form-check-input"
+            onClick={handleSelectAll}
+          />
+        ),
+        cell: (cell) => (
+          <input
+            type="checkbox"
+            className="orderCheckBox form-check-input"
+            value={cell.row.original.$id}
+            onChange={handleCheckboxChange}
+          />
+        ),
+        id: "#",
+        accessorKey: "$id", // Using $id as the accessor key for checkboxes
+        enableColumnFilter: false,
+        enableSorting: false,
+      },
+      {
+        header: "No.",
+        cell: (cell) => cell.row.index + 1,
+        id: "serial",
+        enableColumnFilter: false,
+        enableSorting: false,
+      },
+      {
+        header: "Product",
+        accessorKey: "productId", // Using productId to fetch product name
+        enableColumnFilter: false,
+        cell: (cell) => {
+          const productId = cell.getValue();
+          return productsMap[productId]?.name || "N/A";
+        },
+      },
+      {
+        header: "Item Price",
+        accessorKey: "price",
+        enableColumnFilter: false,
+        cell: (cell) => `$${parseFloat(cell.getValue()).toFixed(2)}`,
+      },
+      {
+        header: "Quantity",
+        accessorKey: "quantity",
+        enableColumnFilter: false,
+      },
+      {
+        header: "Total Amount",
+        accessorKey: "total",
+        enableColumnFilter: false,
+        cell: () => `$${totalAmount}`,
+      },
+    ],
+    [productsMap, totalAmount]
+  );
+
+  // Export CSV Data
+  const exportCSVData = useMemo(() => {
+    return orderItems.map((item, index) => ({
+      no: index + 1,
+      product: productsMap[item.productId]?.name || "N/A",
+      price: `$${parseFloat(item.price).toFixed(2)}`,
+      quantity: item.quantity,
+      total: `$${(item.price * item.quantity).toFixed(2)}`,
+    }));
+  }, [orderItems, productsMap]);
+
+  // Confirm Delete Multiple Orders (if needed)
+  const confirmDeleteMultipleOrders = async () => {
+    if (selectedCheckBoxDelete.length === 0) return;
+    setLoading(true);
+    try {
+      await Promise.all(
+        selectedCheckBoxDelete.map((orderId) => db.Orders.delete(orderId))
+      );
+      toast.success("Selected orders deleted successfully", { autoClose: 3000 });
+      navigate("/dashboard/orders"); // Redirect to orders list page
+    } catch (err) {
+      console.error("Delete Multiple Orders Error:", err);
+      const errorMessage =
+        (err.response && err.response.data && err.response.data.message) ||
+        err.message ||
+        "Failed to delete some orders.";
+      setError(errorMessage);
+      toast.error(errorMessage, { autoClose: 5000 });
+    } finally {
+      setLoading(false);
+      setDeleteModalMulti(false);
+      setSelectedCheckBoxDelete([]);
+      setIsMultiDeleteButton(false);
+    }
+  };
+
+  if (loading) {
+    return <Loader />;
   }
 
-  function togglecol2() {
-    setcol2(!col2);
+  if (error) {
+    return (
+      <div className="alert alert-danger mt-3" role="alert">
+        {error}
+      </div>
+    );
   }
 
-  function togglecol3() {
-    setcol3(!col3);
+  if (!order) {
+    return (
+      <div className="alert alert-info mt-3" role="alert">
+        Order not found.
+      </div>
+    );
   }
 
-document.title ="Order Details | Velzon - React Admin & Dashboard Template";
+  // Ensure 'orderNumber' exists in your Order schema. If not, consider adding it.
+  const orderNumber = order.orderNumber || `#${order.$id.substring(0, 8).toUpperCase()}`;
+
+  // Since 'address' is a simple string, no need to parse it as JSON
+  const address = order.address || "N/A";
+
   return (
     <div className="page-content">
-      <Container fluid>        
+      <Container fluid>
+        {/* Breadcrumb */}
         <BreadCrumb title="Order Details" pageTitle="Ecommerce" />
 
         <Row>
           <Col xl={9}>
+            {/* Order Details Card */}
             <Card>
               <CardHeader>
                 <div className="d-flex align-items-center">
-                  <h5 className="card-title flex-grow-1 mb-0">Order #VL2667</h5>
+                  <h5 className="card-title flex-grow-1 mb-0">Order {orderNumber}</h5>
                   <div className="flex-shrink-0">
-                    <Link
-                      to="/apps-invoices-details"
-                      className="btn btn-success btn-sm"
+                    <Button
+                      color="success"
+                      onClick={() => setIsExportCSV(true)}
+                      size="sm"
+                      className="me-2"
                     >
-                      <i className="ri-download-2-fill align-middle me-1"></i>{" "}
-                      Invoice
+                      <i className="ri-file-download-line align-bottom me-1"></i> Export
+                    </Button>
+                    {/* Re-added Invoice Button */}
+                    <Link
+                      to={`/dashboard/invoices/${orderId}`} // Adjust the route as necessary
+                      className="btn btn-primary btn-sm"
+                    >
+                      <i className="ri-download-2-fill align-bottom me-1"></i> Invoice
                     </Link>
                   </div>
                 </div>
@@ -65,45 +410,30 @@ document.title ="Order Details | Velzon - React Admin & Dashboard Template";
                         <th scope="col">Product Details</th>
                         <th scope="col">Item Price</th>
                         <th scope="col">Quantity</th>
-                        <th scope="col">Rating</th>
+                        {/* Removed "Rating" Column */}
                         <th scope="col" className="text-end">
                           Total Amount
                         </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {productDetails.map((product, key) => (
-                        <EcommerceOrderProduct product={product} key={key} />
+                      {orderItems.map((item, key) => (
+                        <EcommerceOrderProduct
+                          item={item}
+                          key={key}
+                          productsMap={productsMap}
+                        />
                       ))}
                       <tr className="border-top border-top-dashed">
                         <td colSpan="3"></td>
-                        <td colSpan="2" className="fw-medium p-0">
+                        <td className="fw-medium text-end">
                           <table className="table table-borderless mb-0">
                             <tbody>
                               <tr>
                                 <td>Sub Total :</td>
-                                <td className="text-end">$359.96</td>
+                                <td className="text-end">${totalAmount}</td>
                               </tr>
-                              <tr>
-                                <td>
-                                  Discount{" "}
-                                  <span className="text-muted">(VELZON15)</span>{" "}
-                                  : :
-                                </td>
-                                <td className="text-end">-$53.99</td>
-                              </tr>
-                              <tr>
-                                <td>Shipping Charge :</td>
-                                <td className="text-end">$65.00</td>
-                              </tr>
-                              <tr>
-                                <td>Estimated Tax :</td>
-                                <td className="text-end">$44.99</td>
-                              </tr>
-                              <tr className="border-top border-top-dashed">
-                                <th scope="row">Total (USD) :</th>
-                                <th className="text-end">$415.96</th>
-                              </tr>
+                              {/* Add more summary rows if needed */}
                             </tbody>
                           </table>
                         </td>
@@ -114,6 +444,7 @@ document.title ="Order Details | Velzon - React Admin & Dashboard Template";
               </CardBody>
             </Card>
 
+            {/* Order Status Card */}
             <Card>
               <CardHeader>
                 <div className="d-sm-flex align-items-center">
@@ -122,46 +453,42 @@ document.title ="Order Details | Velzon - React Admin & Dashboard Template";
                     <Link
                       to="#"
                       className="btn btn-soft-info btn-sm mt-2 mt-sm-0"
+                      onClick={() => {
+                        setSelectedOrder(order);
+                        toggleModal();
+                      }}
                     >
-                      <i className="ri-map-pin-line align-middle me-1"></i>{" "}
-                      Change Address
-                    </Link>{" "}
-                    <Link
-                      to="#"
-                      className="btn btn-soft-danger btn-sm mt-2 mt-sm-0"
-                    >
-                      <i className="mdi mdi-archive-remove-outline align-middle me-1"></i>{" "}
-                      Cancel Order
+                      <i className="ri-edit-line align-middle me-1"></i> Edit Status
                     </Link>
                   </div>
                 </div>
               </CardHeader>
               <CardBody>
                 <div className="profile-timeline">
-                  <div
-                    className="accordion accordion-flush"
-                    id="accordionFlushExample"
-                  >
-                    <div className="accordion-item border-0" onClick={togglecol1}>
+                  <div className="accordion accordion-flush" id="accordionFlushExample">
+                    {/* Current Order Status */}
+                    <div className="accordion-item border-0">
                       <div className="accordion-header" id="headingOne">
-                        <Link to="#" className={classnames(
-                          "accordion-button",
-                          "p-2",
-                          "shadow-none",
-                          { collapsed: !col1 }
-
-                        )}>
+                        <Link
+                          to="#"
+                          className={classnames(
+                            "accordion-button",
+                            "p-2",
+                            "shadow-none",
+                            { collapsed: !order.orderStatus }
+                          )}
+                        >
                           <div className="d-flex align-items-center">
                             <div className="flex-shrink-0 avatar-xs">
-                              <div className="avatar-title bg-success rounded-circle">
-                                <i className="ri-shopping-bag-line"></i>
+                              <div className={`avatar-title rounded-circle bg-${getStatusColor(order.orderStatus)}`}>
+                                <i className={getStatusIcon(order.orderStatus)}></i>
                               </div>
                             </div>
                             <div className="flex-grow-1 ms-3">
                               <h6 className="fs-15 mb-0 fw-semibold">
-                                Order Placed -{" "}
+                                {order.orderStatus} -{" "}
                                 <span className="fw-normal">
-                                  Wed, 15 Dec 2021
+                                  {moment(order.updatedAt).format("ddd, DD MMM YYYY")}
                                 </span>
                               </h6>
                             </div>
@@ -171,151 +498,18 @@ document.title ="Order Details | Velzon - React Admin & Dashboard Template";
                       <Collapse
                         id="collapseOne"
                         className="accordion-collapse"
-                        isOpen={col1}
-                      >
-                        <div className="accordion-body ms-2 ps-5 pt-0">
-                          <h6 className="mb-1">An order has been placed.</h6>
-                          <p className="text-muted">
-                            Wed, 15 Dec 2021 - 05:34PM
-                          </p>
-
-                          <h6 className="mb-1">
-                            Seller has processed your order.
-                          </h6>
-                          <p className="text-muted mb-0">
-                            Thu, 16 Dec 2021 - 5:48AM
-                          </p>
-                        </div>
-                      </Collapse>
-                    </div>
-                    <div className="accordion-item border-0" onClick={togglecol2}>
-                      <div className="accordion-header" id="headingTwo">
-                        <Link to="#"
-                          className={classnames(
-                            "accordion-button",
-                            "p-2",
-                            "shadow-none",
-                            { collapsed: !col2 }
-                          )}
-                          href="#collapseTwo"
-                        >
-                          <div className="d-flex align-items-center">
-                            <div className="flex-shrink-0 avatar-xs">
-                              <div className="avatar-title bg-success rounded-circle">
-                                <i className="mdi mdi-gift-outline"></i>
-                              </div>
-                            </div>
-                            <div className="flex-grow-1 ms-3">
-                              <h6 className="fs-15 mb-1 fw-semibold">
-                                Packed -{" "}
-                                <span className="fw-normal">
-                                  Thu, 16 Dec 2021
-                                </span>
-                              </h6>
-                            </div>
-                          </div>
-                        </Link>
-                      </div>
-                      <Collapse
-                        id="collapseTwo"
-                        className="accordion-collapse"
-                        isOpen={col2}
+                        isOpen={true} // Always open for current status
                       >
                         <div className="accordion-body ms-2 ps-5 pt-0">
                           <h6 className="mb-1">
-                            Your Item has been picked up by courier patner
+                            {order.orderStatus} on{" "}
+                            {moment(order.updatedAt).format("ddd, DD MMM YYYY - hh:mm A")}
                           </h6>
-                          <p className="text-muted mb-0">
-                            Fri, 17 Dec 2021 - 9:45AM
-                          </p>
+                          {/* Add more details if needed */}
                         </div>
                       </Collapse>
                     </div>
-                    <div className="accordion-item border-0" onClick={togglecol3}>
-                      <div className="accordion-header" id="headingThree">
-                        <Link to="#"
-                          className={classnames(
-                            "accordion-button",
-                            "p-2",
-                            "shadow-none",
-                            { collapsed: !col3 }
-                          )}
-                          href="#collapseThree"
-                        >
-                          <div className="d-flex align-items-center">
-                            <div className="flex-shrink-0 avatar-xs">
-                              <div className="avatar-title bg-success rounded-circle">
-                                <i className="ri-truck-line"></i>
-                              </div>
-                            </div>
-                            <div className="flex-grow-1 ms-3">
-                              <h6 className="fs-15 mb-1 fw-semibold">
-                                Shipping -{" "}
-                                <span className="fw-normal">
-                                  Thu, 16 Dec 2021
-                                </span>
-                              </h6>
-                            </div>
-                          </div>
-                        </Link>
-                      </div>
-                      <Collapse
-                        id="collapseThree"
-                        className="accordion-collapse"
-                        isOpen={col3}
-                      >
-                        <div className="accordion-body ms-2 ps-5 pt-0">
-                          <h6 className="fs-14">
-                            RQK Logistics - MFDS1400457854
-                          </h6>
-                          <h6 className="mb-1">Your item has been shipped.</h6>
-                          <p className="text-muted mb-0">
-                            Sat, 18 Dec 2021 - 4.54PM
-                          </p>
-                        </div>
-                      </Collapse>
-                    </div>
-                    <div className="accordion-item border-0">
-                      <div className="accordion-header" id="headingFour">
-                        <Link to="#"
-                          className="accordion-button p-2 shadow-none"
-                        >
-                          <div className="d-flex align-items-center">
-                            <div className="flex-shrink-0 avatar-xs">
-                              <div className="avatar-title bg-light text-success rounded-circle">
-                                <i className="ri-takeaway-fill"></i>
-                              </div>
-                            </div>
-                            <div className="flex-grow-1 ms-3">
-                              <h6 className="fs-14 mb-0 fw-semibold">
-                                Out For Delivery
-                              </h6>
-                            </div>
-                          </div>
-                        </Link>
-                      </div>
-                    </div>
-                    <div className="accordion-item border-0">
-                      <div className="accordion-header" id="headingFive">
-                        <Link
-                          className="accordion-button p-2 shadow-none"
-                          to="#"
-                        >
-                          <div className="d-flex align-items-center">
-                            <div className="flex-shrink-0 avatar-xs">
-                              <div className="avatar-title bg-light text-success rounded-circle">
-                                <i className="mdi mdi-package-variant"></i>
-                              </div>
-                            </div>
-                            <div className="flex-grow-1 ms-3">
-                              <h6 className="fs-14 mb-0 fw-semibold">
-                                Delivered
-                              </h6>
-                            </div>
-                          </div>
-                        </Link>
-                      </div>
-                    </div>
+                    {/* Add more timeline items as per order status history if available */}
                   </div>
                 </div>
               </CardBody>
@@ -323,35 +517,7 @@ document.title ="Order Details | Velzon - React Admin & Dashboard Template";
           </Col>
 
           <Col xl={3}>
-            <Card>
-              <CardHeader>
-                <div className="d-flex">
-                  <h5 className="card-title flex-grow-1 mb-0">
-                    <i className="mdi mdi-truck-fast-outline align-middle me-1 text-muted"></i>
-                    Logistics Details
-                  </h5>
-                  <div className="flex-shrink-0">
-                    <Link to="#" className="badge bg-primary-subtle text-primary fs-11">
-                      Track Order
-                    </Link>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardBody>
-                <div className="text-center">
-                  <lord-icon
-                    src="https://cdn.lordicon.com/uetqnvvg.json"
-                    trigger="loop"
-                    colors="primary:#405189,secondary:#0ab39c"
-                    style={{ width: "80px", height: "80px" }}
-                  ></lord-icon>
-                  <h5 className="fs-16 mt-2">RQK Logistics</h5>
-                  <p className="text-muted mb-0">ID: MFDS1400457854</p>
-                  <p className="text-muted mb-0">Payment Mode : Debit Card</p>
-                </div>
-              </CardBody>
-            </Card>
-
+            {/* Customer Details */}
             <Card>
               <CardHeader>
                 <div className="d-flex">
@@ -368,50 +534,21 @@ document.title ="Order Details | Velzon - React Admin & Dashboard Template";
               <CardBody>
                 <ul className="list-unstyled mb-0 vstack gap-3">
                   <li>
-                    <div className="d-flex align-items-center">
-                      <div className="flex-shrink-0">
-                        <img
-                          src={avatar3}
-                          alt=""
-                          className="avatar-sm rounded"
-                        />
-                      </div>
-                      <div className="flex-grow-1 ms-3">
-                        <h6 className="fs-14 mb-1">Joseph Parkers</h6>
-                        <p className="text-muted mb-0">Customer</p>
-                      </div>
-                    </div>
+                    <h6 className="fs-14 mb-1">{usersMap[order.userId] || "N/A"}</h6>
                   </li>
                   <li>
                     <i className="ri-mail-line me-2 align-middle text-muted fs-16"></i>
-                    josephparker@gmail.com
+                    {order.email}
                   </li>
                   <li>
                     <i className="ri-phone-line me-2 align-middle text-muted fs-16"></i>
-                    +(256) 245451 441
+                    {order.phoneNumber}
                   </li>
                 </ul>
               </CardBody>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <h5 className="card-title mb-0">
-                  <i className="ri-map-pin-line align-middle me-1 text-muted"></i>{" "}
-                  Billing Address
-                </h5>
-              </CardHeader>
-              <CardBody>
-                <ul className="list-unstyled vstack gap-2 fs-13 mb-0">
-                  <li className="fw-medium fs-14">Joseph Parker</li>
-                  <li>+(256) 245451 451</li>
-                  <li>2186 Joyce Street Rocky Mount</li>
-                  <li>New York - 25645</li>
-                  <li>United States</li>
-                </ul>
-              </CardBody>
-            </Card>
-
+            {/* Shipping Address */}
             <Card>
               <CardHeader>
                 <h5 className="card-title mb-0">
@@ -421,15 +558,13 @@ document.title ="Order Details | Velzon - React Admin & Dashboard Template";
               </CardHeader>
               <CardBody>
                 <ul className="list-unstyled vstack gap-2 fs-13 mb-0">
-                  <li className="fw-medium fs-14">Joseph Parker</li>
-                  <li>+(256) 245451 451</li>
-                  <li>2186 Joyce Street Rocky Mount</li>
-                  <li>California - 24567</li>
-                  <li>United States</li>
+                  <li className="fw-medium fs-14">Address:</li>
+                  <li>{address}</li>
                 </ul>
               </CardBody>
             </Card>
 
+            {/* Payment Details */}
             <Card>
               <CardHeader>
                 <h5 className="card-title mb-0">
@@ -438,53 +573,134 @@ document.title ="Order Details | Velzon - React Admin & Dashboard Template";
                 </h5>
               </CardHeader>
               <CardBody>
-                <div className="d-flex align-items-center mb-2">
-                  <div className="flex-shrink-0">
-                    <p className="text-muted mb-0">Transactions:</p>
-                  </div>
-                  <div className="flex-grow-1 ms-2">
-                    <h6 className="mb-0">#VLZ124561278124</h6>
-                  </div>
-                </div>
+                {/* Display only Payment Method Name */}
                 <div className="d-flex align-items-center mb-2">
                   <div className="flex-shrink-0">
                     <p className="text-muted mb-0">Payment Method:</p>
                   </div>
                   <div className="flex-grow-1 ms-2">
-                    <h6 className="mb-0">Debit Card</h6>
-                  </div>
-                </div>
-                <div className="d-flex align-items-center mb-2">
-                  <div className="flex-shrink-0">
-                    <p className="text-muted mb-0">Card Holder Name:</p>
-                  </div>
-                  <div className="flex-grow-1 ms-2">
-                    <h6 className="mb-0">Joseph Parker</h6>
-                  </div>
-                </div>
-                <div className="d-flex align-items-center mb-2">
-                  <div className="flex-shrink-0">
-                    <p className="text-muted mb-0">Card Number:</p>
-                  </div>
-                  <div className="flex-grow-1 ms-2">
-                    <h6 className="mb-0">xxxx xxxx xxxx 2456</h6>
-                  </div>
-                </div>
-                <div className="d-flex align-items-center">
-                  <div className="flex-shrink-0">
-                    <p className="text-muted mb-0">Total Amount:</p>
-                  </div>
-                  <div className="flex-grow-1 ms-2">
-                    <h6 className="mb-0">$415.96</h6>
+                    <h6 className="mb-0">{order.paymentMethod}</h6>
                   </div>
                 </div>
               </CardBody>
             </Card>
           </Col>
         </Row>
+
+        {/* Export CSV Modal */}
+        <ExportCSVModal
+          show={isExportCSV}
+          onCloseClick={() => setIsExportCSV(false)}
+          data={exportCSVData}
+          filename={`Order_${order.orderNumber || order.$id}.csv`} // Use orderNumber if available
+        />
+
+        {/* Delete Single Order Modal */}
+        <DeleteModal
+          show={deleteModal}
+          onDeleteClick={confirmDeleteOrder}
+          onCloseClick={() => setDeleteModal(false)}
+          title="Delete Order"
+          message="Are you sure you want to delete this order?"
+        />
+
+        {/* Delete Multiple Orders Modal */}
+        <DeleteModal
+          show={deleteModalMulti}
+          onDeleteClick={confirmDeleteMultipleOrders}
+          onCloseClick={() => setDeleteModalMulti(false)}
+          title="Delete Multiple Orders"
+          message="Are you sure you want to delete the selected orders?"
+        />
+
+        {/* Edit Order Modal */}
+        <Modal id="showModal" isOpen={modal} toggle={toggleModal} centered>
+          <ModalHeader className="bg-light p-3" toggle={toggleModal}>
+            Edit Delivery Status
+          </ModalHeader>
+          <Form onSubmit={formik.handleSubmit}>
+            <ModalBody>
+              {selectedOrder ? (
+                // Edit Mode: Only show Delivery Status field
+                <div className="mb-3">
+                  <Label htmlFor="status-field" className="form-label">
+                    Delivery Status
+                  </Label>
+                  <Input
+                    name="status"
+                    id="status-field"
+                    type="select"
+                    className="form-select"
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
+                    value={formik.values.status}
+                    invalid={formik.touched.status && Boolean(formik.errors.status)}
+                  >
+                    <option value="">Select Delivery Status</option>
+                    {orderStatusOptions.map((option, idx) => (
+                      <option value={option.value} key={idx}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Input>
+                  {formik.touched.status && formik.errors.status && (
+                    <FormFeedback type="invalid">
+                      {formik.errors.status}
+                    </FormFeedback>
+                  )}
+                </div>
+              ) : null /* Removed Add Order Fields */}
+            </ModalBody>
+            <div className="modal-footer">
+              <div className="hstack gap-2 justify-content-end">
+                <Button color="light" onClick={toggleModal}>
+                  Close
+                </Button>
+                {selectedOrder && (
+                  <Button
+                    type="submit"
+                    color="success"
+                    disabled={formik.isSubmitting || loading}
+                  >
+                    Update Status
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Form>
+        </Modal>
+
+        {/* Toast Notifications */}
+        <ToastContainer closeButton={false} limit={1} />
       </Container>
     </div>
   );
+};
+
+// Helper function to get status color
+const getStatusColor = (status) => {
+  const statusColors = {
+    Pending: "warning",
+    Inprogress: "secondary",
+    Pickups: "info",
+    Returns: "primary",
+    Delivered: "success",
+    Cancelled: "danger",
+  };
+  return statusColors[status] || "light";
+};
+
+// Helper function to get status icon
+const getStatusIcon = (status) => {
+  const statusIcons = {
+    Pending: "ri-time-line",
+    Inprogress: "ri-refresh-line",
+    Pickups: "ri-truck-line",
+    Returns: "ri-arrow-left-right-line",
+    Delivered: "ri-check-line",
+    Cancelled: "ri-close-line",
+  };
+  return statusIcons[status] || "ri-question-line";
 };
 
 export default EcommerceOrderDetail;

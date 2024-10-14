@@ -295,7 +295,7 @@ const authProtectedRoutes = [
 
 
   { path: "/apps-ecommerce-orders", component: <EcommerceOrders /> },
-  { path: "/apps-ecommerce-order-details", component: <EcommerceOrderDetail /> },
+  { path: "/dashboard/orders/:orderId", component: <EcommerceOrderDetail /> },
   { path: "/apps-ecommerce-customers", component: <EcommerceCustomers /> },
   { path: "/apps-ecommerce-cart", component: <EcommerceCart /> },
   { path: "/apps-ecommerce-checkout", component: <EcommerceCheckout /> },

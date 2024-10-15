@@ -49,7 +49,7 @@ const EcommerceOrderDetail = () => {
   // State Management
   const [order, setOrder] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
-  const [productsMap, setProductsMap] = useState({}); // Map productId to product details
+  // Removed productsMap
   const [usersMap, setUsersMap] = useState({}); // Map userId to userName
 
   const [loading, setLoading] = useState(false);
@@ -131,21 +131,7 @@ const EcommerceOrderDetail = () => {
       ]);
       setOrderItems(orderItemsResponse.documents); // Extract documents array
 
-      // Extract unique productIds
-      const productIds = orderItemsResponse.documents.map((item) => item.productId);
-      const uniqueProductIds = [...new Set(productIds)];
-
-      // Fetch Products if there are any productIds
-      if (uniqueProductIds.length > 0) {
-        const productsResponse = await db.Products.list([
-          Query.equal("$id", uniqueProductIds), // Corrected attribute to "$id"
-        ]);
-        const productsMapLocal = {};
-        productsResponse.documents.forEach((product) => {
-          productsMapLocal[product.$id] = product; // Store the entire product object
-        });
-        setProductsMap(productsMapLocal);
-      }
+      // Removed fetching Products
 
       // Fetch User
       // Corrected Query to match 'userId' field
@@ -266,7 +252,7 @@ const EcommerceOrderDetail = () => {
           />
         ),
         id: "#",
-        accessorKey: "$id", // Using $id as the accessor key for checkboxes
+        accessorKey: "$id",
         enableColumnFilter: false,
         enableSorting: false,
       },
@@ -279,12 +265,9 @@ const EcommerceOrderDetail = () => {
       },
       {
         header: "Product",
-        accessorKey: "productId", // Using productId to fetch product name
+        accessorKey: "productName",
         enableColumnFilter: false,
-        cell: (cell) => {
-          const productId = cell.getValue();
-          return productsMap[productId]?.name || "N/A";
-        },
+        cell: (cell) => cell.getValue() || "N/A",
       },
       {
         header: "Item Price",
@@ -304,19 +287,19 @@ const EcommerceOrderDetail = () => {
         cell: () => `$${totalAmount}`,
       },
     ],
-    [productsMap, totalAmount]
+    [totalAmount]
   );
 
   // Export CSV Data
   const exportCSVData = useMemo(() => {
     return orderItems.map((item, index) => ({
       no: index + 1,
-      product: productsMap[item.productId]?.name || "N/A",
+      product: item.productName || "N/A",
       price: `$${parseFloat(item.price).toFixed(2)}`,
       quantity: item.quantity,
       total: `$${(item.price * item.quantity).toFixed(2)}`,
     }));
-  }, [orderItems, productsMap]);
+  }, [orderItems]);
 
   // Confirm Delete Multiple Orders (if needed)
   const confirmDeleteMultipleOrders = async () => {
@@ -421,7 +404,6 @@ const EcommerceOrderDetail = () => {
                         <EcommerceOrderProduct
                           item={item}
                           key={key}
-                          productsMap={productsMap}
                         />
                       ))}
                       <tr className="border-top border-top-dashed">

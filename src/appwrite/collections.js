@@ -34,10 +34,6 @@ export const collections = [
     name: "subscribers",
   },
   {
-    id: "67076d3400357d0fb6dc",
-    name: "subscribers",
-  },
-  {
     id: "670a4d9700228b9457e2",
     name: "OrderItems",
   },

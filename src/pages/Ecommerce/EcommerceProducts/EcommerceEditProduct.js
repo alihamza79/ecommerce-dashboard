@@ -29,15 +29,15 @@ import "react-toastify/dist/ReactToastify.css";
 
 const EcommerceEditProduct = () => {
   const navigate = useNavigate();
-  const params = useParams();
-  const { productId } = params;
+  const { productId } = useParams();
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [existingImages, setExistingImages] = useState([]);
   const [categories, setCategories] = useState([]);
   const [productType, setProductType] = useState("retail"); // 'retail' or 'wholesale'
   const [fetchError, setFetchError] = useState(""); // To display category fetch errors
-  const [submitError, setSubmitError] = useState(""); // To display submission errors
   const [isLoading, setIsLoading] = useState(true); // Loading state
+
+  const [productData, setProductData] = useState(null);
 
   // Fetch categories from Appwrite
   useEffect(() => {
@@ -77,7 +77,6 @@ const EcommerceEditProduct = () => {
         console.log("Fetched product data:", product);
         setProductData(product);
         setProductType(product.isWholesaleProduct ? "wholesale" : "retail");
-        setIsOnSale(product.isOnSale);
         setExistingImages(product.images || []);
         setIsLoading(false);
       } catch (error) {
@@ -89,9 +88,6 @@ const EcommerceEditProduct = () => {
 
     fetchProduct();
   }, [productId]);
-
-  const [productData, setProductData] = useState(null);
-  const [isOnSale, setIsOnSale] = useState(false); // Moved to separate state; will integrate into Formik
 
   // Handle file uploads (for preview, store the selected files in state)
   const handleAcceptedFiles = (files) => {
@@ -105,17 +101,14 @@ const EcommerceEditProduct = () => {
         preview: URL.createObjectURL(file),
       })
     );
-    setSelectedFiles((prevFiles) => [...prevFiles, ...previewFiles]); // Use functional update
-    console.log("Selected Files after drop:", [...selectedFiles, ...previewFiles]); // Debugging
+    setSelectedFiles((prevFiles) => [...prevFiles, ...previewFiles]);
+    console.log("Selected Files after drop:", [...selectedFiles, ...previewFiles]);
   };
 
   // Remove a selected image
   const removeSelectedFile = (file) => {
     setSelectedFiles((prevFiles) => prevFiles.filter((f) => f !== file));
-    console.log(
-      "Selected Files after removal:",
-      selectedFiles.filter((f) => f !== file)
-    ); // Debugging
+    console.log("Selected Files after removal:", selectedFiles.filter((f) => f !== file));
   };
 
   // Remove an existing image and delete it from storage
@@ -136,14 +129,14 @@ const EcommerceEditProduct = () => {
 
   // Cleanup image previews to avoid memory leaks
   useEffect(() => {
-    // Revoke the data uris to avoid memory leaks
+    // Revoke the data URIs to avoid memory leaks
     return () => {
       selectedFiles.forEach((file) => URL.revokeObjectURL(file.preview));
     };
   }, [selectedFiles]);
 
   // Formik validation schema
-  const validation = useFormik({
+  const formik = useFormik({
     enableReinitialize: true,
     initialValues: {
       name: productData?.name || "",
@@ -154,6 +147,7 @@ const EcommerceEditProduct = () => {
       tags: productData?.tags ? productData.tags.join(",") : "",
       isOnSale: productData?.isOnSale || false, // Integrated into Formik's state
       discountPrice: productData?.discountPrice || "", // Added discountPrice
+      productType: productType, // Added productType to initialValues
     },
     validationSchema: Yup.object({
       name: Yup.string().required("Please enter a product title"),
@@ -167,21 +161,30 @@ const EcommerceEditProduct = () => {
         .min(0, "Stock Quantity cannot be negative")
         .required("Please enter the product stock"),
       categoryId: Yup.string().required("Please select a product category"),
-      // Conditionally require discountPrice if isOnSale is true
-      discountPrice: Yup.number().when("isOnSale", (isOnSale, schema) => {
-        return isOnSale
-          ? schema
+      productType: Yup.string()
+        .oneOf(["retail", "wholesale"], "Invalid product type")
+        .required("Please select a product type"),
+      isOnSale: Yup.boolean().notRequired(),
+      discountPrice: Yup.number()
+        .transform((value, originalValue) =>
+          originalValue === "" ? null : value
+        )
+        .nullable()
+        .when("isOnSale", {
+          is: true,
+          then: () =>
+            Yup.number()
               .typeError("Discount Price must be a number")
               .positive("Discount Price must be a positive number")
               .required("Please enter a discount price")
               .max(
                 Yup.ref("price"),
                 "Discount Price must be less than the original price"
-              )
-          : schema.notRequired();
-      }),
-      // tags: Yup.string(), // Optional: add validation if needed
-      // description: Yup.string(), // Optional: add validation if needed
+              ),
+          otherwise: () => Yup.number().notRequired(),
+        }),
+      tags: Yup.string(),
+      description: Yup.string(),
     }),
     onSubmit: async (values) => {
       try {
@@ -224,7 +227,7 @@ const EcommerceEditProduct = () => {
           discountPrice: values.isOnSale
             ? parseFloat(values.discountPrice)
             : null, // Include discountPrice if on sale
-          isWholesaleProduct: productType === "wholesale",
+          isWholesaleProduct: values.productType === "wholesale",
         };
 
         console.log("Updated Product Data:", updatedProduct); // Debugging
@@ -264,7 +267,14 @@ const EcommerceEditProduct = () => {
       <ToastContainer closeButton={false} limit={1} />
       <Container fluid>
         <h3>Edit Product</h3>
-        <Form onSubmit={validation.handleSubmit}>
+        <Form onSubmit={formik.handleSubmit}>
+          {/* Display Submission Error */}
+          {fetchError && (
+            <Alert color="danger" className="mb-3">
+              {fetchError}
+            </Alert>
+          )}
+
           <Row>
             <Col lg={8}>
               <Card>
@@ -279,8 +289,11 @@ const EcommerceEditProduct = () => {
                           name="productType"
                           id="retail"
                           value="retail"
-                          checked={productType === "retail"}
-                          onChange={() => setProductType("retail")}
+                          checked={formik.values.productType === "retail"}
+                          onChange={() => {
+                            formik.setFieldValue("productType", "retail");
+                            setProductType("retail"); // Update local state if needed
+                          }}
                           className="form-check-input"
                         />
                         <Label className="form-check-label" htmlFor="retail">
@@ -293,8 +306,11 @@ const EcommerceEditProduct = () => {
                           name="productType"
                           id="wholesale"
                           value="wholesale"
-                          checked={productType === "wholesale"}
-                          onChange={() => setProductType("wholesale")}
+                          checked={formik.values.productType === "wholesale"}
+                          onChange={() => {
+                            formik.setFieldValue("productType", "wholesale");
+                            setProductType("wholesale"); // Update local state if needed
+                          }}
                           className="form-check-input"
                         />
                         <Label className="form-check-label" htmlFor="wholesale">
@@ -302,6 +318,11 @@ const EcommerceEditProduct = () => {
                         </Label>
                       </div>
                     </div>
+                    {formik.errors.productType && formik.touched.productType && (
+                      <FormFeedback type="invalid" className="d-block">
+                        {formik.errors.productType}
+                      </FormFeedback>
+                    )}
                   </div>
 
                   {/* Product Title */}
@@ -315,18 +336,18 @@ const EcommerceEditProduct = () => {
                       id="product-title-input"
                       placeholder="Enter product title"
                       name="name"
-                      value={validation.values.name}
-                      onBlur={validation.handleBlur}
-                      onChange={validation.handleChange}
+                      value={formik.values.name}
+                      onBlur={formik.handleBlur}
+                      onChange={formik.handleChange}
                       invalid={
-                        validation.errors.name && validation.touched.name
+                        formik.errors.name && formik.touched.name
                           ? true
                           : false
                       }
                     />
-                    {validation.errors.name && validation.touched.name ? (
+                    {formik.errors.name && formik.touched.name ? (
                       <FormFeedback type="invalid">
-                        {validation.errors.name}
+                        {formik.errors.name}
                       </FormFeedback>
                     ) : null}
                   </div>
@@ -336,18 +357,14 @@ const EcommerceEditProduct = () => {
                     <Label>Product Description</Label>
                     <CKEditor
                       editor={ClassicEditor}
-                      data={validation.values.description || ""}
+                      data={formik.values.description}
                       onChange={(event, editor) => {
-                        validation.setFieldValue(
-                          "description",
-                          editor.getData()
-                        );
+                        formik.setFieldValue("description", editor.getData());
                       }}
                     />
-                    {validation.errors.description &&
-                    validation.touched.description ? (
-                      <FormFeedback type="invalid">
-                        {validation.errors.description}
+                    {formik.errors.description && formik.touched.description ? (
+                      <FormFeedback type="invalid" className="d-block">
+                        {formik.errors.description}
                       </FormFeedback>
                     ) : null}
                   </div>
@@ -361,10 +378,10 @@ const EcommerceEditProduct = () => {
                       <div className="mb-4">
                         <h5 className="fs-14 mb-1">Product Images</h5>
                         <Dropzone
-                          onDrop={(acceptedFiles) => {
-                            handleAcceptedFiles(acceptedFiles);
+                          onDrop={handleAcceptedFiles}
+                          accept={{
+                            "image/*": [".jpeg", ".png", ".gif", ".bmp", ".webp"],
                           }}
-                          accept="image/*"
                           maxSize={5242880} // 5MB
                         >
                           {({
@@ -374,7 +391,6 @@ const EcommerceEditProduct = () => {
                             isDragReject,
                             rejectedFiles,
                           }) => {
-                            // Ensure rejectedFiles is always an array
                             const safeRejectedFiles = Array.isArray(rejectedFiles)
                               ? rejectedFiles
                               : [];
@@ -382,11 +398,11 @@ const EcommerceEditProduct = () => {
                               safeRejectedFiles.length > 0 &&
                               safeRejectedFiles[0].size > 5242880;
                             return (
-                              <div className="dropzone dz-clickable">
-                                <div
-                                  className="dz-message needsclick"
-                                  {...getRootProps()}
-                                >
+                              <div className="dropzone dz-clickable" {...getRootProps()}>
+                                {/* Render the input element */}
+                                <input {...getInputProps()} />
+
+                                <div className="dz-message needsclick">
                                   <div className="mb-3 mt-5">
                                     <i className="display-4 text-muted ri-upload-cloud-2-fill" />
                                   </div>
@@ -491,7 +507,7 @@ const EcommerceEditProduct = () => {
                 </CardBody>
               </Card>
 
-              {/* General Info (Price, Stock, and Category) */}
+              {/* General Info (Price and Stock) */}
               <Card>
                 <CardHeader>
                   <h5 className="card-title mb-0">General Info</h5>
@@ -501,27 +517,31 @@ const EcommerceEditProduct = () => {
                     <Col lg={6}>
                       <div className="mb-3">
                         <Label className="form-label">
-                          {productType === "wholesale" ? "Wholesale Price" : "Price"}
+                          {formik.values.productType === "wholesale"
+                            ? "Wholesale Price"
+                            : "Price"}
                         </Label>
                         <Input
                           type="number"
                           className="form-control"
                           name="price"
                           placeholder={`Enter ${
-                            productType === "wholesale" ? "wholesale" : "retail"
+                            formik.values.productType === "wholesale"
+                              ? "wholesale"
+                              : "retail"
                           } price`}
-                          value={validation.values.price}
-                          onBlur={validation.handleBlur}
-                          onChange={validation.handleChange}
+                          value={formik.values.price}
+                          onBlur={formik.handleBlur}
+                          onChange={formik.handleChange}
                           invalid={
-                            validation.errors.price && validation.touched.price
+                            formik.errors.price && formik.touched.price
                               ? true
                               : false
                           }
                         />
-                        {validation.errors.price && validation.touched.price ? (
+                        {formik.errors.price && formik.touched.price ? (
                           <FormFeedback type="invalid">
-                            {validation.errors.price}
+                            {formik.errors.price}
                           </FormFeedback>
                         ) : null}
                       </div>
@@ -532,7 +552,7 @@ const EcommerceEditProduct = () => {
                     <Col lg={6}>
                       <div className="mb-3">
                         <Label className="form-label">
-                          {productType === "wholesale"
+                          {formik.values.productType === "wholesale"
                             ? "Wholesale Stock Quantity"
                             : "Stock Quantity"}
                         </Label>
@@ -541,22 +561,23 @@ const EcommerceEditProduct = () => {
                           className="form-control"
                           name="stockQuantity"
                           placeholder={`Enter ${
-                            productType === "wholesale" ? "wholesale" : "retail"
+                            formik.values.productType === "wholesale"
+                              ? "wholesale"
+                              : "retail"
                           } stock quantity`}
-                          value={validation.values.stockQuantity}
-                          onBlur={validation.handleBlur}
-                          onChange={validation.handleChange}
+                          value={formik.values.stockQuantity}
+                          onBlur={formik.handleBlur}
+                          onChange={formik.handleChange}
                           invalid={
-                            validation.errors.stockQuantity &&
-                            validation.touched.stockQuantity
+                            formik.errors.stockQuantity &&
+                            formik.touched.stockQuantity
                               ? true
                               : false
                           }
                         />
-                        {validation.errors.stockQuantity &&
-                        validation.touched.stockQuantity ? (
+                        {formik.errors.stockQuantity && formik.touched.stockQuantity ? (
                           <FormFeedback type="invalid">
-                            {validation.errors.stockQuantity}
+                            {formik.errors.stockQuantity}
                           </FormFeedback>
                         ) : null}
                       </div>
@@ -589,19 +610,19 @@ const EcommerceEditProduct = () => {
                 <CardBody>
                   <Select
                     value={categories.find(
-                      (cat) => cat.value === validation.values.categoryId
+                      (cat) => cat.value === formik.values.categoryId
                     )}
                     onChange={(option) =>
-                      validation.setFieldValue("categoryId", option.value)
+                      formik.setFieldValue("categoryId", option.value)
                     }
                     options={categories}
                     name="categoryId"
                     classNamePrefix="select2-selection form-select"
                     placeholder="Select a category"
                   />
-                  {validation.errors.categoryId && validation.touched.categoryId ? (
+                  {formik.errors.categoryId && formik.touched.categoryId ? (
                     <FormFeedback type="invalid" className="d-block">
-                      {validation.errors.categoryId}
+                      {formik.errors.categoryId}
                     </FormFeedback>
                   ) : null}
                 </CardBody>
@@ -618,18 +639,18 @@ const EcommerceEditProduct = () => {
                     placeholder="Enter tags separated by commas"
                     type="text"
                     name="tags"
-                    value={validation.values.tags}
-                    onBlur={validation.handleBlur}
-                    onChange={validation.handleChange}
+                    value={formik.values.tags}
+                    onBlur={formik.handleBlur}
+                    onChange={formik.handleChange}
                     invalid={
-                      validation.errors.tags && validation.touched.tags
+                      formik.errors.tags && formik.touched.tags
                         ? true
                         : false
                     }
                   />
-                  {validation.errors.tags && validation.touched.tags ? (
+                  {formik.errors.tags && formik.touched.tags ? (
                     <FormFeedback type="invalid">
-                      {validation.errors.tags}
+                      {formik.errors.tags}
                     </FormFeedback>
                   ) : null}
                 </CardBody>
@@ -648,8 +669,13 @@ const EcommerceEditProduct = () => {
                       role="switch"
                       id="isOnSale"
                       name="isOnSale"
-                      checked={validation.values.isOnSale}
-                      onChange={validation.handleChange}
+                      checked={formik.values.isOnSale}
+                      onChange={(e) => {
+                        formik.handleChange(e);
+                        if (!e.target.checked) {
+                          formik.setFieldValue("discountPrice", ""); // Reset discountPrice
+                        }
+                      }}
                     />
                     <Label className="form-check-label" htmlFor="isOnSale">
                       Is On Sale
@@ -657,7 +683,7 @@ const EcommerceEditProduct = () => {
                   </div>
 
                   {/* Discount Price Field */}
-                  {validation.values.isOnSale && (
+                  {formik.values.isOnSale && (
                     <div className="mb-3">
                       <Label htmlFor="discountPrice">Discount Price</Label>
                       <Input
@@ -666,20 +692,19 @@ const EcommerceEditProduct = () => {
                         id="discountPrice"
                         placeholder="Enter discount price"
                         name="discountPrice"
-                        value={validation.values.discountPrice || ""}
-                        onBlur={validation.handleBlur}
-                        onChange={validation.handleChange}
+                        value={formik.values.discountPrice || ""}
+                        onBlur={formik.handleBlur}
+                        onChange={formik.handleChange}
                         invalid={
-                          validation.errors.discountPrice &&
-                          validation.touched.discountPrice
+                          formik.errors.discountPrice &&
+                          formik.touched.discountPrice
                             ? true
                             : false
                         }
                       />
-                      {validation.errors.discountPrice &&
-                      validation.touched.discountPrice ? (
+                      {formik.errors.discountPrice && formik.touched.discountPrice ? (
                         <FormFeedback type="invalid">
-                          {validation.errors.discountPrice}
+                          {formik.errors.discountPrice}
                         </FormFeedback>
                       ) : null}
                     </div>

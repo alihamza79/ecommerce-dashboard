@@ -1,6 +1,6 @@
 // src/pages/Ecommerce/EcommerceAddCategory.js
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import Dropzone from "react-dropzone";
@@ -43,6 +43,15 @@ const EcommerceAddCategory = () => {
   const removeSelectedFile = () => {
     setSelectedFile(null);
   };
+
+  // Cleanup image preview to avoid memory leaks
+  useEffect(() => {
+    return () => {
+      if (selectedFile) {
+        URL.revokeObjectURL(selectedFile.preview);
+      }
+    };
+  }, [selectedFile]);
 
   // Initialize Formik for form handling
   const formik = useFormik({
@@ -162,27 +171,59 @@ const EcommerceAddCategory = () => {
                     </CardHeader>
                     <CardBody>
                       <Dropzone
-                        onDrop={(acceptedFiles) => {
-                          handleAcceptedFiles(acceptedFiles);
-                        }}
+                        onDrop={handleAcceptedFiles}
                         multiple={false} // Only one image allowed
                         accept={{
                           "image/*": [".png", ".jpg", ".jpeg", ".gif"],
                         }}
+                        maxSize={5242880} // 5MB
                       >
-                        {({ getRootProps, getInputProps }) => (
-                          <div className="dropzone dz-clickable">
+                        {({
+                          getRootProps,
+                          getInputProps,
+                          isDragActive,
+                          isDragReject,
+                          rejectedFiles,
+                        }) => {
+                          const safeRejectedFiles = Array.isArray(rejectedFiles)
+                            ? rejectedFiles
+                            : [];
+                          const isFileTooLarge =
+                            safeRejectedFiles.length > 0 &&
+                            safeRejectedFiles[0].size > 5242880;
+
+                          return (
                             <div
-                              className="dz-message needsclick"
+                              className="dropzone dz-clickable"
                               {...getRootProps()}
                             >
-                              <div className="mb-3 mt-5">
-                                <i className="display-4 text-muted ri-upload-cloud-2-fill" />
+                              {/* Render the input element */}
+                              <input {...getInputProps()} />
+
+                              <div className="dz-message needsclick">
+                                <div className="mb-3 mt-5">
+                                  <i className="display-4 text-muted ri-upload-cloud-2-fill" />
+                                </div>
+                                <h5>Drop an image here or click to upload.</h5>
+                                {isDragActive && !isDragReject && (
+                                  <p className="mt-2 text-primary">
+                                    Drop the files here...
+                                  </p>
+                                )}
+                                {isDragReject && (
+                                  <p className="mt-2 text-danger">
+                                    Unsupported file type.
+                                  </p>
+                                )}
+                                {isFileTooLarge && (
+                                  <p className="mt-2 text-danger">
+                                    File is too large.
+                                  </p>
+                                )}
                               </div>
-                              <h5>Drop an image here or click to upload.</h5>
                             </div>
-                          </div>
-                        )}
+                          );
+                        }}
                       </Dropzone>
 
                       {/* Image Preview */}
@@ -193,7 +234,11 @@ const EcommerceAddCategory = () => {
                               src={selectedFile.preview}
                               alt="Selected"
                               className="img-thumbnail"
-                              style={{ width: "200px", height: "200px", objectFit: "cover" }}
+                              style={{
+                                width: "200px",
+                                height: "200px",
+                                objectFit: "cover",
+                              }}
                             />
                             <Button
                               color="danger"

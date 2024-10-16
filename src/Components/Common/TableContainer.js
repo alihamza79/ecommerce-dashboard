@@ -8,11 +8,12 @@ import {
   useReactTable,
   getCoreRowModel,
   getPaginationRowModel,
+  getFilteredRowModel,
   getSortedRowModel,
   flexRender,
-} from '@tanstack/react-table';
+} from "@tanstack/react-table";
 
-import { rankItem } from '@tanstack/match-sorter-utils';
+import { rankItem } from "@tanstack/match-sorter-utils";
 
 // Global Filter Component
 const DebouncedInput = ({
@@ -50,7 +51,7 @@ const TableContainer = ({
   columns,
   data,
   isGlobalFilter,
-  isFilter, // Accept this prop
+  isFilter,
   customPageSize,
   tableClass,
   theadClass,
@@ -59,12 +60,12 @@ const TableContainer = ({
   divClass,
   SearchPlaceholder,
 }) => {
-  const [globalFilter, setGlobalFilter] = useState('');
+  const [globalFilter, setGlobalFilter] = useState("");
 
   const fuzzyFilter = (row, columnId, value, addMeta) => {
     const itemRank = rankItem(row.getValue(columnId), value);
     addMeta({
-      itemRank
+      itemRank,
     });
     return itemRank.passed;
   };
@@ -79,19 +80,17 @@ const TableContainer = ({
       globalFilter,
     },
     onGlobalFilterChange: setGlobalFilter,
-    globalFilterFn: fuzzyFilter,
+    globalFilterFn: "fuzzy",
     getCoreRowModel: getCoreRowModel(),
-    // Only include getFilteredRowModel if you need global filtering
+    getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
   const {
     getHeaderGroups,
-    getRowModel,
     getCanPreviousPage,
     getCanNextPage,
-    getPageOptions,
     setPageIndex,
     nextPage,
     previousPage,
@@ -100,28 +99,78 @@ const TableContainer = ({
   } = table;
 
   useEffect(() => {
-    (customPageSize) && setPageSize((customPageSize));
+    customPageSize && setPageSize(customPageSize);
   }, [customPageSize, setPageSize]);
+
+  const pageCount = table.getPageCount();
+  const currentPageIndex = getState().pagination.pageIndex;
+  const maxPageNumbers = 7; // Adjust this number as needed
+
+  const getPageNumbers = (currentPageIndex, pageCount, maxPageNumbers) => {
+    const pages = [];
+
+    if (pageCount <= maxPageNumbers) {
+      // Less than max, show all pages
+      for (let i = 0; i < pageCount; i++) {
+        pages.push(i);
+      }
+    } else {
+      // More than max, show first, last, and middle pages
+      const sideWidth = Math.max(1, Math.floor((maxPageNumbers - 3) / 2));
+      let left = currentPageIndex - sideWidth;
+      let right = currentPageIndex + sideWidth;
+
+      if (left < 1) {
+        right += 1 - left;
+        left = 1;
+      }
+      if (right > pageCount - 2) {
+        left -= right - (pageCount - 2);
+        right = pageCount - 2;
+      }
+
+      pages.push(0); // First page
+
+      if (left > 1) {
+        pages.push("ellipsis");
+      }
+
+      for (let i = left; i <= right; i++) {
+        pages.push(i);
+      }
+
+      if (right < pageCount - 2) {
+        pages.push("ellipsis");
+      }
+
+      pages.push(pageCount - 1); // Last page
+    }
+
+    return pages;
+  };
+
+  const pageNumbers = getPageNumbers(currentPageIndex, pageCount, maxPageNumbers);
 
   return (
     <Fragment>
       {isGlobalFilter && (
         <Row className="mb-3">
           <CardBody className="border border-dashed border-end-0 border-start-0">
-            <form>
+            {/* Replace form with a div to prevent page reload on Enter key */}
+            <div>
               <Row>
                 <Col sm={5}>
                   <div className="search-box me-2 mb-2 d-inline-block col-12">
                     <DebouncedInput
-                      value={globalFilter ?? ''}
-                      onChange={value => setGlobalFilter((value))}
+                      value={globalFilter ?? ""}
+                      onChange={(value) => setGlobalFilter(value)}
                       placeholder={SearchPlaceholder}
                     />
                     <i className="bx bx-search-alt search-icon"></i>
                   </div>
                 </Col>
               </Row>
-            </form>
+            </div>
           </CardBody>
         </Row>
       )}
@@ -129,7 +178,7 @@ const TableContainer = ({
       <div className={divClass}>
         <Table hover className={tableClass}>
           <thead className={theadClass}>
-            {getHeaderGroups().map((headerGroup) => (
+            {table.getHeaderGroups().map((headerGroup) => (
               <tr className={trClass} key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
                   <th
@@ -146,10 +195,9 @@ const TableContainer = ({
                           header.getContext()
                         )}
                         {{
-                          asc: ' ',
-                          desc: ' ',
+                          asc: " ",
+                          desc: " ",
                         }[header.column.getIsSorted()] ?? null}
-                        {/* Conditionally render per-column filter */}
                         {isFilter && header.column.getCanFilter() ? (
                           <div>
                             {/* If you have a Filter component, you can render it here */}
@@ -164,7 +212,7 @@ const TableContainer = ({
           </thead>
 
           <tbody>
-            {getRowModel().rows.map((row) => {
+            {table.getRowModel().rows.map((row) => {
               return (
                 <tr key={row.id}>
                   {row.getVisibleCells().map((cell) => {
@@ -189,7 +237,16 @@ const TableContainer = ({
           <div className="text-muted">
             Showing
             <span className="fw-semibold ms-1">
-              {getState().pagination.pageSize}
+              {data.length > 0
+                ? currentPageIndex * getState().pagination.pageSize + 1
+                : 0}
+            </span>
+            to
+            <span className="fw-semibold ms-1">
+              {Math.min(
+                (currentPageIndex + 1) * getState().pagination.pageSize,
+                data.length
+              )}
             </span>
             of
             <span className="fw-semibold"> {data.length}</span> Results
@@ -197,29 +254,45 @@ const TableContainer = ({
         </div>
         <div className="col-sm-auto">
           <ul className="pagination pagination-separated pagination-md justify-content-center justify-content-sm-start mb-0">
-            <li className={!getCanPreviousPage() ? "page-item disabled" : "page-item"}>
+            <li
+              className={
+                !getCanPreviousPage() ? "page-item disabled" : "page-item"
+              }
+            >
               <Link to="#" className="page-link" onClick={() => previousPage()}>
                 Previous
               </Link>
             </li>
-            {getPageOptions().map((item, key) => (
-              <React.Fragment key={key}>
-                <li className="page-item">
-                  <Link
-                    to="#"
-                    className={
-                      getState().pagination.pageIndex === item
-                        ? "page-link active"
-                        : "page-link"
-                    }
-                    onClick={() => setPageIndex(item)}
-                  >
-                    {item + 1}
-                  </Link>
-                </li>
-              </React.Fragment>
-            ))}
-            <li className={!getCanNextPage() ? "page-item disabled" : "page-item"}>
+            {pageNumbers.map((item, key) => {
+              if (item === "ellipsis") {
+                return (
+                  <li key={key} className="page-item disabled">
+                    <span className="page-link">...</span>
+                  </li>
+                );
+              } else {
+                return (
+                  <li key={key} className="page-item">
+                    <Link
+                      to="#"
+                      className={
+                        currentPageIndex === item
+                          ? "page-link active"
+                          : "page-link"
+                      }
+                      onClick={() => setPageIndex(item)}
+                    >
+                      {item + 1}
+                    </Link>
+                  </li>
+                );
+              }
+            })}
+            <li
+              className={
+                !getCanNextPage() ? "page-item disabled" : "page-item"
+              }
+            >
               <Link to="#" className="page-link" onClick={() => nextPage()}>
                 Next
               </Link>

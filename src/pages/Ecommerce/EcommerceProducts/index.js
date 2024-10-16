@@ -24,6 +24,7 @@ import db from "../../../appwrite/Services/dbServices";
 import storageServices from "../../../appwrite/Services/storageServices";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { Query } from "appwrite"; // Import Query from Appwrite SDK
 
 const EcommerceProducts = () => {
   // State variables
@@ -32,25 +33,52 @@ const EcommerceProducts = () => {
   const [categories, setCategories] = useState([]);
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [priceRange, setPriceRange] = useState({ min: 0, max: 1000 });
-  const [priceSliderRange, setPriceSliderRange] = useState({ min: 0, max: 1000 });
+  const [priceSliderRange, setPriceSliderRange] = useState({
+    min: 0,
+    max: 1000,
+  });
   const [isWholesaleFilter, setIsWholesaleFilter] = useState(false);
   const [isOnSaleFilter, setIsOnSaleFilter] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleteModalMulti, setDeleteModalMulti] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
   const [dele, setDele] = useState(0);
+  const [isLoading, setIsLoading] = useState(true); // Added loading state
 
   useEffect(() => {
     // Fetch products and categories from Appwrite
     const fetchData = async () => {
       try {
-        const [productResponse, categoryResponse] = await Promise.all([
-          db.Products.list(),
-          db.Categories.list(),
-        ]);
+        setIsLoading(true); // Set loading to true when fetching starts
+        // Initialize variables for pagination
+        let products = [];
+        let offset = 0;
+        const limit = 100; // Maximum limit per request
+
+        // Fetch products in batches until all are fetched
+        while (true) {
+          const productResponse = await db.Products.list([
+            Query.limit(limit),
+            Query.offset(offset),
+          ]);
+
+          // Add the fetched products to the array
+          products = products.concat(productResponse.documents);
+
+          // If the number of fetched products is less than the limit, we've fetched all products
+          if (productResponse.documents.length < limit) {
+            break;
+          }
+
+          // Increment the offset for the next batch
+          offset += limit;
+        }
+
+        // Fetch categories
+        const categoryResponse = await db.Categories.list();
 
         // Map and parse the product data
-        const products = productResponse.documents.map((product) => ({
+        products = products.map((product) => ({
           ...product,
           price: parseFloat(product.price),
           isOnSale: Boolean(product.isOnSale),
@@ -84,6 +112,8 @@ const EcommerceProducts = () => {
       } catch (error) {
         console.error("Failed to fetch data:", error);
         toast.error("Failed to fetch data");
+      } finally {
+        setIsLoading(false); // Set loading to false when fetching is done
       }
     };
     fetchData();
@@ -102,9 +132,6 @@ const EcommerceProducts = () => {
 
   // Function to get image URL
   const getImageURL = (imageId) => {
-    // Implement this function based on your storage service.
-    // For example, if using Appwrite's storage service, construct the URL accordingly.
-    // Placeholder implementation:
     return storageServices.images.getFilePreview(imageId);
   };
 
@@ -119,7 +146,8 @@ const EcommerceProducts = () => {
 
     // Price range filter
     filtered = filtered.filter(
-      (product) => product.price >= priceRange.min && product.price <= priceRange.max
+      (product) =>
+        product.price >= priceRange.min && product.price <= priceRange.max
     );
 
     // Wholesale filter
@@ -301,11 +329,7 @@ const EcommerceProducts = () => {
         accessorKey: "isWholesaleProduct",
         enableColumnFilter: false,
         cell: (cell) => (
-          <span
-            className={`badge ${
-              cell.getValue() ? "bg-success" : "bg-primary"
-            }`}
-          >
+          <span className={`badge ${cell.getValue() ? "bg-success" : "bg-primary"}`}>
             {cell.getValue() ? "Wholesale" : "Retail"}
           </span>
         ),
@@ -340,15 +364,13 @@ const EcommerceProducts = () => {
                 <DropdownItem
                   href={`/apps-ecommerce-product-details/${cell.row.original.$id}`}
                 >
-                  <i className="ri-eye-fill align-bottom me-2 text-muted"></i>{" "}
-                  View
+                  <i className="ri-eye-fill align-bottom me-2 text-muted"></i> View
                 </DropdownItem>
 
                 <DropdownItem
                   href={`/apps-ecommerce-edit-product/${cell.row.original.$id}`}
                 >
-                  <i className="ri-pencil-fill align-bottom me-2 text-muted"></i>{" "}
-                  Edit
+                  <i className="ri-pencil-fill align-bottom me-2 text-muted"></i> Edit
                 </DropdownItem>
 
                 <DropdownItem divider />
@@ -407,10 +429,8 @@ const EcommerceProducts = () => {
                         });
                         setIsWholesaleFilter(false);
                         setIsOnSaleFilter(false);
-                        document.getElementById("minCost").value =
-                          priceSliderRange.min;
-                        document.getElementById("maxCost").value =
-                          priceSliderRange.max;
+                        document.getElementById("minCost").value = priceSliderRange.min;
+                        document.getElementById("maxCost").value = priceSliderRange.max;
                       }}
                     >
                       Clear All
@@ -579,7 +599,22 @@ const EcommerceProducts = () => {
                   </Row>
                 </div>
                 <div className="card-body pt-0">
-                  {filteredProductList && filteredProductList.length > 0 ? (
+                  {isLoading ? (
+                    <div className="py-4 text-center">
+                      <div>
+                        <lord-icon
+                          src="https://cdn.lordicon.com/msoeawqm.json"
+                          trigger="loop"
+                          colors="primary:#405189,secondary:#0ab39c"
+                          style={{ width: "72px", height: "72px" }}
+                        ></lord-icon>
+                      </div>
+
+                      <div className="mt-4">
+                        <h5>Loading data!</h5>
+                      </div>
+                    </div>
+                  ) : filteredProductList && filteredProductList.length > 0 ? (
                     <TableContainer
                       columns={columns}
                       data={filteredProductList}

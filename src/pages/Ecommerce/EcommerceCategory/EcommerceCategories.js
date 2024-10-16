@@ -1,3 +1,5 @@
+// src/pages/Ecommerce/EcommerceCategories.js
+
 import React, { useEffect, useState, useMemo } from "react";
 import {
   Container,
@@ -17,15 +19,15 @@ import BreadCrumb from "../../../Components/Common/BreadCrumb";
 import TableContainer from "../../../Components/Common/TableContainer";
 import DeleteModal from "../../../Components/Common/DeleteModal";
 import db from "../../../appwrite/Services/dbServices";
-import storageServices from "../../../appwrite/Services/storageServices"; // Import storage services
+import storageServices from "../../../appwrite/Services/storageServices";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { Query } from "appwrite"; // Ensure Query is imported correctly
+import { Query } from "appwrite";
 
 const EcommerceCategories = () => {
   const [categoryList, setCategoryList] = useState([]);
   const [filteredCategoryList, setFilteredCategoryList] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Added isLoading state
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleteModalMulti, setDeleteModalMulti] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState(null);
@@ -35,17 +37,18 @@ const EcommerceCategories = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await db.Categories.list(); // No queries needed for fetching all
+        setIsLoading(true); // Set loading to true when fetching starts
+        const response = await db.Categories.list();
         const categories = response.documents.map((category) => ({
           ...category,
         }));
         setCategoryList(categories);
         setFilteredCategoryList(categories);
-        setIsLoading(false);
       } catch (error) {
         console.error("Failed to fetch categories:", error);
         toast.error("Failed to fetch categories");
-        setIsLoading(false);
+      } finally {
+        setIsLoading(false); // Set loading to false when fetching is done
       }
     };
 
@@ -61,8 +64,9 @@ const EcommerceCategories = () => {
   // Function to delete associated products and their images
   const deleteProductsByCategory = async (categoryId) => {
     try {
-      // Corrected: Pass queries as an array directly
-      const productsResponse = await db.Products.list([Query.equal("categoryId", categoryId)]);
+      const productsResponse = await db.Products.list([
+        Query.equal("categoryId", categoryId),
+      ]);
       const products = productsResponse.documents;
 
       // Delete each product's images and the product itself
@@ -103,10 +107,16 @@ const EcommerceCategories = () => {
         setDeleteModal(false);
 
         // Update the state using functional updates
-        setCategoryList((prevList) => prevList.filter((c) => c.$id !== categoryToDelete.$id));
-        setFilteredCategoryList((prevList) => prevList.filter((c) => c.$id !== categoryToDelete.$id));
+        setCategoryList((prevList) =>
+          prevList.filter((c) => c.$id !== categoryToDelete.$id)
+        );
+        setFilteredCategoryList((prevList) =>
+          prevList.filter((c) => c.$id !== categoryToDelete.$id)
+        );
 
-        toast.success("Category and associated products deleted successfully");
+        toast.success(
+          "Category and associated products deleted successfully"
+        );
       } catch (error) {
         console.error("Failed to delete category:", error);
         toast.error(error.message || "Failed to delete category");
@@ -150,13 +160,19 @@ const EcommerceCategories = () => {
       );
       // Remove the deleted categories from the state
       const deletedIds = Array.from(ele).map((element) => element.value);
-      setCategoryList((prevList) => prevList.filter((c) => !deletedIds.includes(c.$id)));
-      setFilteredCategoryList((prevList) => prevList.filter((c) => !deletedIds.includes(c.$id)));
+      setCategoryList((prevList) =>
+        prevList.filter((c) => !deletedIds.includes(c.$id))
+      );
+      setFilteredCategoryList((prevList) =>
+        prevList.filter((c) => !deletedIds.includes(c.$id))
+      );
       del.style.display = "none";
       setDele(0);
       setDeleteModalMulti(false);
 
-      toast.success("Selected categories and associated products deleted successfully");
+      toast.success(
+        "Selected categories and associated products deleted successfully"
+      );
     } catch (error) {
       console.error("Failed to delete categories:", error);
       toast.error(error.message || "Failed to delete selected categories");
@@ -197,13 +213,23 @@ const EcommerceCategories = () => {
             <img
               src={getImageURL(imageId)}
               alt={cell.row.original.name}
-              style={{ width: "50px", height: "50px", objectFit: "cover", borderRadius: "4px" }}
+              style={{
+                width: "50px",
+                height: "50px",
+                objectFit: "cover",
+                borderRadius: "4px",
+              }}
             />
           ) : (
             <img
               src="/path/to/default-category-image.jpg" // Provide a default image path
               alt="Default"
-              style={{ width: "50px", height: "50px", objectFit: "cover", borderRadius: "4px" }}
+              style={{
+                width: "50px",
+                height: "50px",
+                objectFit: "cover",
+                borderRadius: "4px",
+              }}
             />
           );
         },
@@ -213,7 +239,10 @@ const EcommerceCategories = () => {
         accessorKey: "name",
         enableColumnFilter: false,
         cell: (cell) => (
-          <Link to={`/apps-ecommerce-edit-category/${cell.row.original.$id}`} className="text-body">
+          <Link
+            to={`/apps-ecommerce-edit-category/${cell.row.original.$id}`}
+            className="text-body"
+          >
             {cell.getValue()}
           </Link>
         ),
@@ -222,20 +251,32 @@ const EcommerceCategories = () => {
         header: "Description",
         accessorKey: "description",
         enableColumnFilter: false,
-        cell: (cell) => <span>{cell.getValue() ? cell.getValue() : "No description."}</span>,
+        cell: (cell) => (
+          <span>
+            {cell.getValue() ? cell.getValue() : "No description."}
+          </span>
+        ),
       },
       {
         header: "Action",
         cell: (cell) => {
           return (
             <UncontrolledDropdown>
-              <DropdownToggle href="#" className="btn btn-soft-secondary btn-sm" tag="button">
+              <DropdownToggle
+                href="#"
+                className="btn btn-soft-secondary btn-sm"
+                tag="button"
+              >
                 <i className="ri-more-fill" />
               </DropdownToggle>
               <DropdownMenu className="dropdown-menu-end">
                 {/* Edit Category */}
-                <DropdownItem tag={Link} to={`/apps-ecommerce-edit-category/${cell.row.original.$id}`}>
-                  <i className="ri-pencil-fill align-bottom me-2 text-muted"></i> Edit
+                <DropdownItem
+                  tag={Link}
+                  to={`/apps-ecommerce-edit-category/${cell.row.original.$id}`}
+                >
+                  <i className="ri-pencil-fill align-bottom me-2 text-muted"></i>{" "}
+                  Edit
                 </DropdownItem>
 
                 {/* Delete Category */}
@@ -246,7 +287,8 @@ const EcommerceCategories = () => {
                     onClickDelete(categoryData);
                   }}
                 >
-                  <i className="ri-delete-bin-fill align-bottom me-2 text-muted"></i> Delete
+                  <i className="ri-delete-bin-fill align-bottom me-2 text-muted"></i>{" "}
+                  Delete
                 </DropdownItem>
               </DropdownMenu>
             </UncontrolledDropdown>
@@ -268,7 +310,7 @@ const EcommerceCategories = () => {
         onDeleteClick={handleDeleteCategory}
         onCloseClick={() => setDeleteModal(false)}
         title="Delete Category"
-        requireConfirmation = "true" 
+        requireConfirmation="true"
         message="Are you sure you want to delete this category and all its associated products? This action cannot be undone."
       />
 
@@ -278,7 +320,7 @@ const EcommerceCategories = () => {
         onDeleteClick={deleteMultiple}
         onCloseClick={() => setDeleteModalMulti(false)}
         title="Delete Selected Categories"
-        requireConfirmation = "true" 
+        requireConfirmation="true"
         message="Are you sure you want to delete the selected categories and all their associated products? This action cannot be undone."
       />
 
@@ -309,7 +351,10 @@ const EcommerceCategories = () => {
                     <div id="selection-element" style={{ display: "none" }}>
                       <div className="my-n1 d-flex align-items-center text-muted">
                         Selected{" "}
-                        <div id="select-content" className="text-body fw-semibold px-1">
+                        <div
+                          id="select-content"
+                          className="text-body fw-semibold px-1"
+                        >
                           {dele}
                         </div>{" "}
                         Result(s)
@@ -326,7 +371,23 @@ const EcommerceCategories = () => {
                 </Row>
               </CardHeader>
               <CardBody>
-                {filteredCategoryList && filteredCategoryList.length > 0 ? (
+                {isLoading ? (
+                  // Loading Indicator
+                  <div className="py-4 text-center">
+                    <div>
+                      <lord-icon
+                        src="https://cdn.lordicon.com/msoeawqm.json"
+                        trigger="loop"
+                        colors="primary:#405189,secondary:#0ab39c"
+                        style={{ width: "72px", height: "72px" }}
+                      ></lord-icon>
+                    </div>
+
+                    <div className="mt-4">
+                      <h5>Loading data!</h5>
+                    </div>
+                  </div>
+                ) : filteredCategoryList && filteredCategoryList.length > 0 ? (
                   <TableContainer
                     columns={columns}
                     data={filteredCategoryList}

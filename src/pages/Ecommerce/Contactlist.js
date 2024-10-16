@@ -1,3 +1,5 @@
+// src/pages/ContactList.js
+
 import React, { useEffect, useState, useMemo } from "react";
 import {
   Container,
@@ -29,10 +31,12 @@ const ContactList = () => {
   const [selectedContact, setSelectedContact] = useState(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteType, setDeleteType] = useState("");
+  const [isLoading, setIsLoading] = useState(true); // Added isLoading state
 
   useEffect(() => {
     const fetchContacts = async () => {
       try {
+        setIsLoading(true); // Set loading to true when fetching starts
         const response = await db.contacts.list();
         const contactData = response.documents.map((doc) => ({
           id: doc.$id,
@@ -47,6 +51,8 @@ const ContactList = () => {
       } catch (error) {
         console.error("Failed to fetch contacts:", error);
         toast.error("Failed to fetch contacts");
+      } finally {
+        setIsLoading(false); // Set loading to false when fetching is done
       }
     };
 
@@ -125,9 +131,9 @@ const ContactList = () => {
 
     const mailtoLink = `mailto:?bcc=${encodeURIComponent(
       selectedEmails.join(",")
-    )}&subject=${encodeURIComponent("Your Subject Here")}&body=${encodeURIComponent(
-      "Your message here."
-    )}`;
+    )}&subject=${encodeURIComponent(
+      "Your Subject Here"
+    )}&body=${encodeURIComponent("Your message here.")}`;
 
     window.location.href = mailtoLink;
   };
@@ -135,7 +141,7 @@ const ContactList = () => {
   const columns = useMemo(
     () => [
       {
-        id: 'selection',
+        id: "selection",
         header: () => (
           <input
             type="checkbox"
@@ -173,20 +179,20 @@ const ContactList = () => {
       {
         header: "Name",
         accessorKey: "name",
-        cell: info => <span>{info.getValue()}</span>,
+        cell: (info) => <span>{info.getValue()}</span>,
       },
       {
         header: "Email",
         accessorKey: "email",
-        cell: info => <span>{info.getValue()}</span>,
+        cell: (info) => <span>{info.getValue()}</span>,
       },
       {
         header: "Phone Number",
         accessorKey: "phoneNumber",
-        cell: info => <span>{info.getValue()}</span>,
+        cell: (info) => <span>{info.getValue()}</span>,
       },
       {
-        id: 'actions',
+        id: "actions",
         header: "Actions",
         cell: ({ row }) => (
           <>
@@ -235,7 +241,9 @@ const ContactList = () => {
                 <div className="d-flex align-items-center">
                   <div className="flex-grow-1">
                     <Select
-                      value={filterOptions.find((option) => option.value === filter)}
+                      value={filterOptions.find(
+                        (option) => option.value === filter
+                      )}
                       onChange={handleFilterChange}
                       options={filterOptions}
                       classNamePrefix="select2-selection"
@@ -251,10 +259,7 @@ const ContactList = () => {
                       >
                         Reply All
                       </Button>
-                      <Button
-                        color="danger"
-                        onClick={handleDeleteSelected}
-                      >
+                      <Button color="danger" onClick={handleDeleteSelected}>
                         Delete Selected
                       </Button>
                     </div>
@@ -262,7 +267,23 @@ const ContactList = () => {
                 </div>
               </CardHeader>
               <CardBody>
-                {filteredContacts && filteredContacts.length > 0 ? (
+                {isLoading ? (
+                  // Loading Indicator
+                  <div className="py-4 text-center">
+                    <div>
+                      <lord-icon
+                        src="https://cdn.lordicon.com/msoeawqm.json"
+                        trigger="loop"
+                        colors="primary:#405189,secondary:#0ab39c"
+                        style={{ width: "72px", height: "72px" }}
+                      ></lord-icon>
+                    </div>
+
+                    <div className="mt-4">
+                      <h5>Loading data!</h5>
+                    </div>
+                  </div>
+                ) : filteredContacts && filteredContacts.length > 0 ? (
                   <TableContainer
                     columns={columns}
                     data={filteredContacts}
@@ -276,7 +297,10 @@ const ContactList = () => {
                 ) : (
                   <div className="py-4 text-center">
                     <div>
-                      <i className="ri-search-line" style={{ fontSize: "2rem" }}></i>
+                      <i
+                        className="ri-search-line"
+                        style={{ fontSize: "2rem" }}
+                      ></i>
                     </div>
                     <div className="mt-4">
                       <h5>No contacts found</h5>
@@ -290,7 +314,11 @@ const ContactList = () => {
       </Container>
 
       {/* View Message Modal */}
-      <Modal isOpen={isModalOpen} toggle={() => setIsModalOpen(!isModalOpen)}>
+      <Modal
+        isOpen={isModalOpen}
+        toggle={() => setIsModalOpen(!isModalOpen)}
+        centered
+      >
         <ModalHeader toggle={() => setIsModalOpen(!isModalOpen)}>
           Contact Message
         </ModalHeader>
@@ -317,9 +345,7 @@ const ContactList = () => {
       <Modal isOpen={deleteModalOpen} toggle={cancelDelete} centered>
         <ModalHeader toggle={cancelDelete}>Delete Confirmation</ModalHeader>
         <ModalBody>
-          <p>
-            Are you sure you want to delete the selected contacts?
-          </p>
+          <p>Are you sure you want to delete the selected contacts?</p>
         </ModalBody>
         <ModalFooter>
           <Button color="danger" onClick={confirmDelete}>

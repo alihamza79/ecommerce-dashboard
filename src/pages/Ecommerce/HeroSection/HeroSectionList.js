@@ -8,7 +8,6 @@ import {
   CardHeader,
   CardBody,
   Col,
-  Button,
 } from "reactstrap";
 import BreadCrumb from "../../../Components/Common/BreadCrumb";
 import { Link } from "react-router-dom";
@@ -19,12 +18,13 @@ import "react-toastify/dist/ReactToastify.css";
 
 const HeroSectionList = () => {
   const [heroSection, setHeroSection] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Added isLoading state
 
   useEffect(() => {
     const fetchHeroSection = async () => {
       try {
-        const response = await db.heroSection.list(); // Assuming db.heroSection is configured
+        setIsLoading(true); // Start loading
+        const response = await db.heroSection.list();
         let heroData = response.documents[0];
 
         if (!heroData) {
@@ -32,7 +32,7 @@ const HeroSectionList = () => {
           const dummyData = {
             title: "Dummy Title",
             subtitle: "Dummy Subtitle",
-            imageId: "", 
+            imageId: "",
           };
           const newDocument = await db.heroSection.create(dummyData);
           heroData = newDocument;
@@ -40,11 +40,11 @@ const HeroSectionList = () => {
         }
 
         setHeroSection(heroData);
-        setIsLoading(false);
       } catch (error) {
         console.error("Failed to fetch hero section:", error);
         toast.error("Failed to fetch hero section.");
-        setIsLoading(false);
+      } finally {
+        setIsLoading(false); // Stop loading
       }
     };
     fetchHeroSection();
@@ -57,71 +57,92 @@ const HeroSectionList = () => {
     return imageUrlResponse.href;
   };
 
-  if (isLoading) {
-    return (
-      <div className="page-content">
-        <Container fluid>
-          <h3>Loading...</h3>
-        </Container>
-      </div>
-    );
-  }
-
   return (
     <div className="page-content">
       <ToastContainer closeButton={false} limit={1} />
       <Container fluid>
         <BreadCrumb title="Hero Section" pageTitle="Hero Section" />
-        <Row>
-          <Col lg={12}>
-            <Card>
-              <CardHeader className="d-flex align-items-center">
-                <h4 className="card-title mb-0 flex-grow-1">Hero Section</h4>
-                <div className="flex-shrink-0">
-                  <Link
-                    to={`/editherosection/${heroSection.$id}`}
-                    className="btn btn-primary"
-                  >
-                    Edit Hero Section
-                  </Link>
-                </div>
-              </CardHeader>
-              <CardBody>
-                <table className="table table-bordered">
-                  <tbody>
-                    <tr>
-                      <th style={{ width: "200px" }}>Title</th>
-                      <td>{heroSection.title}</td>
-                    </tr>
-                    <tr>
-                      <th>Subtitle</th>
-                      <td>{heroSection.subtitle}</td>
-                    </tr>
-                    <tr>
-                      <th>Image</th>
-                      <td>
-                        {heroSection.imageId ? (
-                          <img
-                            src={getImageURL(heroSection.imageId)}
-                            alt="Hero"
-                            className="img-thumbnail"
-                            style={{
-                              width: "200px",
-                              height: "200px",
-                              objectFit: "cover",
-                            }}
-                          />
-                        ) : (
-                          "No image uploaded."
-                        )}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </CardBody>
-            </Card>
-          </Col>
-        </Row>
+        {isLoading ? (
+          // Loading Indicator
+          <div className="py-4 text-center">
+            <div>
+              <lord-icon
+                src="https://cdn.lordicon.com/msoeawqm.json"
+                trigger="loop"
+                colors="primary:#405189,secondary:#0ab39c"
+                style={{ width: "72px", height: "72px" }}
+              ></lord-icon>
+            </div>
+            <div className="mt-4">
+              <h5>Loading data!</h5>
+            </div>
+          </div>
+        ) : heroSection ? (
+          <Row>
+            <Col lg={12}>
+              <Card>
+                <CardHeader className="d-flex align-items-center">
+                  <h4 className="card-title mb-0 flex-grow-1">Hero Section</h4>
+                  <div className="flex-shrink-0">
+                    <Link
+                      to={`/editherosection/${heroSection.$id}`}
+                      className="btn btn-primary"
+                    >
+                      Edit Hero Section
+                    </Link>
+                  </div>
+                </CardHeader>
+                <CardBody>
+                  <table className="table table-bordered">
+                    <tbody>
+                      <tr>
+                        <th style={{ width: "200px" }}>Title</th>
+                        <td>{heroSection.title}</td>
+                      </tr>
+                      <tr>
+                        <th>Subtitle</th>
+                        <td>{heroSection.subtitle}</td>
+                      </tr>
+                      <tr>
+                        <th>Image</th>
+                        <td>
+                          {heroSection.imageId ? (
+                            <img
+                              src={getImageURL(heroSection.imageId)}
+                              alt="Hero"
+                              className="img-thumbnail"
+                              style={{
+                                width: "200px",
+                                height: "200px",
+                                objectFit: "cover",
+                              }}
+                            />
+                          ) : (
+                            "No image uploaded."
+                          )}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </CardBody>
+              </Card>
+            </Col>
+          </Row>
+        ) : (
+          <div className="py-4 text-center">
+            <div>
+              <lord-icon
+                src="https://cdn.lordicon.com/msoeawqm.json"
+                trigger="loop"
+                colors="primary:#405189,secondary:#0ab39c"
+                style={{ width: "72px", height: "72px" }}
+              ></lord-icon>
+            </div>
+            <div className="mt-4">
+              <h5>No Hero Section Found</h5>
+            </div>
+          </div>
+        )}
       </Container>
     </div>
   );

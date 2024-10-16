@@ -1,6 +1,6 @@
-// src/pages/WholesaleRequests.jsx
+// src/pages/WholesaleRequests.js
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from "react";
 import {
   Card,
   CardBody,
@@ -15,27 +15,28 @@ import {
   Form,
   Label,
   Input,
-} from 'reactstrap';
-import { toast, ToastContainer } from 'react-toastify';
-import db from '../../appwrite/Services/dbServices';
-import TableContainer from '../../Components/Common/TableContainer';
-import { Query } from 'appwrite';
+} from "reactstrap";
+import { toast, ToastContainer } from "react-toastify";
+import db from "../../appwrite/Services/dbServices";
+import TableContainer from "../../Components/Common/TableContainer";
+import { Query } from "appwrite";
 
 const WholesaleRequests = () => {
   const [requests, setRequests] = useState([]);
   const [usersData, setUsersData] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Added loading state
   const [rejectModal, setRejectModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
-  const [rejectReason, setRejectReason] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [rejectReason, setRejectReason] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Fetch wholesale requests and user data
   const fetchWholesaleRequests = async () => {
     try {
+      setLoading(true); // Set loading to true when fetching starts
       // Fetch only pending and approved requests (exclude rejected requests)
       const response = await db.WholesaleAccountRequests.list([
-        Query.notEqual('status', 'rejected'),
+        Query.notEqual("status", "rejected"),
       ]);
 
       setRequests(response.documents);
@@ -46,24 +47,24 @@ const WholesaleRequests = () => {
         const userId = request.userId;
         try {
           // Fetch user where 'userId' field equals the userId from the request
-          const userList = await db.Users.list([Query.equal('userId', userId)]);
+          const userList = await db.Users.list([Query.equal("userId", userId)]);
           if (userList.total > 0) {
             usersMap[userId] = userList.documents[0];
           } else {
             console.error(`User with userId ${userId} not found.`);
-            usersMap[userId] = { name: 'Unknown', email: '' };
+            usersMap[userId] = { name: "Unknown", email: "" };
           }
         } catch (error) {
           console.error(`Error fetching user with userId ${userId}:`, error);
-          usersMap[userId] = { name: 'Unknown', email: '' };
+          usersMap[userId] = { name: "Unknown", email: "" };
         }
       }
       setUsersData(usersMap);
-      setLoading(false);
     } catch (error) {
-      console.error('Error fetching wholesale requests:', error);
-      toast.error('Failed to fetch wholesale requests.');
-      setLoading(false);
+      console.error("Error fetching wholesale requests:", error);
+      toast.error("Failed to fetch wholesale requests.");
+    } finally {
+      setLoading(false); // Set loading to false when fetching is done
     }
   };
 
@@ -75,12 +76,14 @@ const WholesaleRequests = () => {
   const handleApprove = async (request) => {
     try {
       // Update the request status to 'approved'
-      await db.WholesaleAccountRequests.update(request.$id, { status: 'approved' });
+      await db.WholesaleAccountRequests.update(request.$id, {
+        status: "approved",
+      });
 
       // Update the user's isWholesaleApproved property to true
       // First, fetch the user document ID from the Users collection
       const userId = request.userId;
-      const userList = await db.Users.list([Query.equal('userId', userId)]);
+      const userList = await db.Users.list([Query.equal("userId", userId)]);
       if (userList.total > 0) {
         const userDocId = userList.documents[0].$id;
         await db.Users.update(userDocId, { isWholesaleApproved: true });
@@ -88,11 +91,11 @@ const WholesaleRequests = () => {
         console.error(`User with userId ${userId} not found.`);
       }
 
-      toast.success('Request approved successfully.');
+      toast.success("Request approved successfully.");
       fetchWholesaleRequests();
     } catch (error) {
-      console.error('Error approving request:', error);
-      toast.error('Failed to approve request.');
+      console.error("Error approving request:", error);
+      toast.error("Failed to approve request.");
     }
   };
 
@@ -107,13 +110,13 @@ const WholesaleRequests = () => {
     try {
       // Update the request status and set the rejection reason
       await db.WholesaleAccountRequests.update(selectedRequest.$id, {
-        status: 'rejected',
-        rejectionReason: rejectReason || '',
+        status: "rejected",
+        rejectionReason: rejectReason || "",
       });
 
       // Update the user's isWholesaleApproved property to false
       const userId = selectedRequest.userId;
-      const userList = await db.Users.list([Query.equal('userId', userId)]);
+      const userList = await db.Users.list([Query.equal("userId", userId)]);
       if (userList.total > 0) {
         const userDocId = userList.documents[0].$id;
         await db.Users.update(userDocId, { isWholesaleApproved: false });
@@ -121,13 +124,13 @@ const WholesaleRequests = () => {
         console.error(`User with userId ${userId} not found.`);
       }
 
-      toast.success('Request rejected successfully.');
+      toast.success("Request rejected successfully.");
       setRejectModal(false);
-      setRejectReason('');
+      setRejectReason("");
       fetchWholesaleRequests();
     } catch (error) {
-      console.error('Error rejecting request:', error);
-      toast.error('Failed to reject request.');
+      console.error("Error rejecting request:", error);
+      toast.error("Failed to reject request.");
     }
   };
 
@@ -150,9 +153,9 @@ const WholesaleRequests = () => {
   const columns = useMemo(
     () => [
       {
-        header: 'User',
-        id: 'user',
-        accessorKey: 'userId',
+        header: "User",
+        id: "user",
+        accessorKey: "userId",
         disableFilters: true,
         cell: ({ row }) => {
           const userId = row.original.userId;
@@ -163,39 +166,39 @@ const WholesaleRequests = () => {
               <div>{user.email}</div>
             </div>
           ) : (
-            'Loading...'
+            "Loading..."
           );
         },
       },
       {
-        header: 'Reason',
-        accessorKey: 'reason',
+        header: "Reason",
+        accessorKey: "reason",
         disableFilters: true,
       },
       {
-        header: 'Status',
-        accessorKey: 'status',
-        id: 'status',
+        header: "Status",
+        accessorKey: "status",
+        id: "status",
         disableFilters: true,
         cell: ({ cell }) => {
           const status = cell.getValue();
-          let badgeClass = '';
+          let badgeClass = "";
           switch (status) {
-            case 'pending':
-              badgeClass = 'bg-warning text-dark';
+            case "pending":
+              badgeClass = "bg-warning text-dark";
               break;
-            case 'approved':
-              badgeClass = 'bg-success text-white';
+            case "approved":
+              badgeClass = "bg-success text-white";
               break;
             default:
-              badgeClass = 'bg-secondary text-white';
+              badgeClass = "bg-secondary text-white";
           }
           return <span className={`badge ${badgeClass}`}>{status}</span>;
         },
       },
       {
-        header: 'Actions',
-        id: 'actions',
+        header: "Actions",
+        id: "actions",
         disableFilters: true,
         cell: ({ row }) => {
           const request = row.original;
@@ -206,7 +209,7 @@ const WholesaleRequests = () => {
                 size="sm"
                 className="me-2"
                 onClick={() => handleApprove(request)}
-                disabled={request.status === 'approved'} // Disable if already approved
+                disabled={request.status === "approved"} // Disable if already approved
               >
                 Approve
               </Button>
@@ -249,7 +252,21 @@ const WholesaleRequests = () => {
               </CardHeader>
               <CardBody>
                 {loading ? (
-                  <div>Loading...</div>
+                  // Loading Indicator
+                  <div className="py-4 text-center">
+                    <div>
+                      <lord-icon
+                        src="https://cdn.lordicon.com/msoeawqm.json"
+                        trigger="loop"
+                        colors="primary:#405189,secondary:#0ab39c"
+                        style={{ width: "72px", height: "72px" }}
+                      ></lord-icon>
+                    </div>
+
+                    <div className="mt-4">
+                      <h5>Loading data!</h5>
+                    </div>
+                  </div>
                 ) : (
                   <TableContainer
                     columns={columns}

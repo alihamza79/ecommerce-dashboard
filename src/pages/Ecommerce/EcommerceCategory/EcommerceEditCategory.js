@@ -19,7 +19,7 @@ import * as Yup from "yup";
 import Dropzone from "react-dropzone";
 import { useNavigate, useParams } from "react-router-dom";
 import db from "../../../appwrite/Services/dbServices";
-import storageServices from "../../../appwrite/Services/storageServices"; // Import storage services
+import storageServices from "../../../appwrite/Services/storageServices";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import BreadCrumb from "../../../Components/Common/BreadCrumb";
@@ -28,16 +28,14 @@ const EcommerceEditCategory = () => {
   const navigate = useNavigate();
   const params = useParams();
   const { categoryId } = params;
-  const [selectedFile, setSelectedFile] = useState(null); // For new image
-  const [existingImage, setExistingImage] = useState(null); // Existing image ID
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [existingImage, setExistingImage] = useState(null);
   const [categoryData, setCategoryData] = useState(null);
-  const [isLoading, setIsLoading] = useState(true); // Loading state
+  const [isLoading, setIsLoading] = useState(true); // Added isLoading state
 
   // Fetch existing category data on component mount
   useEffect(() => {
     const fetchCategory = async () => {
-      console.log("Category ID from params:", categoryId);
-
       if (!categoryId) {
         console.error("Category ID is undefined");
         toast.error("Invalid category ID");
@@ -46,15 +44,17 @@ const EcommerceEditCategory = () => {
       }
 
       try {
+        setIsLoading(true); // Start loading
         const category = await db.Categories.get(categoryId);
-        console.log("Fetched category data:", category);
         setCategoryData(category);
-        setExistingImage(category.image && category.image.length > 0 ? category.image[0] : null);
-        setIsLoading(false);
+        setExistingImage(
+          category.image && category.image.length > 0 ? category.image[0] : null
+        );
       } catch (error) {
         console.error("Failed to fetch category:", error);
         toast.error("Failed to fetch category data");
-        setIsLoading(false);
+      } finally {
+        setIsLoading(false); // Stop loading
       }
     };
 
@@ -159,7 +159,20 @@ const EcommerceEditCategory = () => {
     return (
       <div className="page-content">
         <Container fluid>
-          <h3>Loading...</h3>
+          {/* Loading Indicator */}
+          <div className="py-4 text-center">
+            <div>
+              <lord-icon
+                src="https://cdn.lordicon.com/msoeawqm.json"
+                trigger="loop"
+                colors="primary:#405189,secondary:#0ab39c"
+                style={{ width: "72px", height: "72px" }}
+              ></lord-icon>
+            </div>
+            <div className="mt-4">
+              <h5>Loading data!</h5>
+            </div>
+          </div>
         </Container>
       </div>
     );

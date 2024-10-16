@@ -1,3 +1,5 @@
+// src/pages/Ecommerce/BlogsList.js
+
 import React, { useEffect, useState, useMemo } from "react";
 import {
   Container,
@@ -22,6 +24,7 @@ import "react-toastify/dist/ReactToastify.css";
 
 const BlogsList = () => {
   const [blogsList, setBlogsList] = useState([]);
+  const [isLoading, setIsLoading] = useState(true); // Added isLoading state
   const [deleteModal, setDeleteModal] = useState(false);
   const [blogToDelete, setBlogToDelete] = useState(null);
 
@@ -29,15 +32,16 @@ const BlogsList = () => {
     // Fetch blogs from Appwrite
     const fetchBlogs = async () => {
       try {
+        setIsLoading(true); // Set loading to true when fetching starts
         const response = await db.blogs.list();
-        console.log("Fetched blogs response:", response);
         const blogs = response.documents || [];
-        console.log("Blogs array:", blogs);
         setBlogsList(blogs);
       } catch (error) {
         console.error("Failed to fetch blogs:", error);
         toast.error("Failed to fetch blogs");
         setBlogsList([]); // Ensure blogsList is always an array
+      } finally {
+        setIsLoading(false); // Set loading to false when fetching is done
       }
     };
     fetchBlogs();
@@ -162,7 +166,23 @@ const BlogsList = () => {
                 </div>
               </CardHeader>
               <CardBody>
-                {blogsList && blogsList.length > 0 ? (
+                {isLoading ? (
+                  // Loading Indicator
+                  <div className="py-4 text-center">
+                    <div>
+                      <lord-icon
+                        src="https://cdn.lordicon.com/msoeawqm.json"
+                        trigger="loop"
+                        colors="primary:#405189,secondary:#0ab39c"
+                        style={{ width: "72px", height: "72px" }}
+                      ></lord-icon>
+                    </div>
+
+                    <div className="mt-4">
+                      <h5>Loading data!</h5>
+                    </div>
+                  </div>
+                ) : blogsList && blogsList.length > 0 ? (
                   <TableContainer
                     columns={columns}
                     data={blogsList}

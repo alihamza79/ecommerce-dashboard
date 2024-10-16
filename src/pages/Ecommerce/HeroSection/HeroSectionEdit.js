@@ -31,12 +31,13 @@ const HeroSectionEdit = () => {
   const [fileRejectionErrors, setFileRejectionErrors] = useState([]);
   const [existingImageUrl, setExistingImageUrl] = useState(null);
   const [heroData, setHeroData] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Added isLoading state
 
   // Fetch hero section data
   useEffect(() => {
     const fetchHeroSection = async () => {
       try {
+        setIsLoading(true); // Start loading
         const hero = await db.heroSection.get(id);
         setHeroData(hero);
 
@@ -47,12 +48,11 @@ const HeroSectionEdit = () => {
           );
           setExistingImageUrl(imageUrlResponse.href);
         }
-
-        setIsLoading(false);
       } catch (error) {
         console.error("Failed to fetch hero section:", error);
         toast.error("Failed to fetch hero section data");
-        setIsLoading(false);
+      } finally {
+        setIsLoading(false); // Stop loading
       }
     };
     fetchHeroSection();
@@ -138,7 +138,20 @@ const HeroSectionEdit = () => {
     return (
       <div className="page-content">
         <Container fluid>
-          <h3>Loading...</h3>
+          {/* Loading Indicator */}
+          <div className="py-4 text-center">
+            <div>
+              <lord-icon
+                src="https://cdn.lordicon.com/msoeawqm.json"
+                trigger="loop"
+                colors="primary:#405189,secondary:#0ab39c"
+                style={{ width: "72px", height: "72px" }}
+              ></lord-icon>
+            </div>
+            <div className="mt-4">
+              <h5>Loading data!</h5>
+            </div>
+          </div>
         </Container>
       </div>
     );

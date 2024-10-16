@@ -24,6 +24,7 @@ import db from "../../../appwrite/Services/dbServices";
 import storageServices from "../../../appwrite/Services/storageServices";
 import { CKEditor } from "@ckeditor/ckeditor5-react";
 import ClassicEditor from "@ckeditor/ckeditor5-build-classic";
+import BreadCrumb from "../../../Components/Common/BreadCrumb";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -33,9 +34,9 @@ const EcommerceEditProduct = () => {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [existingImages, setExistingImages] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [productType, setProductType] = useState("retail"); // 'retail' or 'wholesale'
-  const [fetchError, setFetchError] = useState(""); // To display category fetch errors
-  const [isLoading, setIsLoading] = useState(true); // Loading state
+  const [productType, setProductType] = useState("retail");
+  const [fetchError, setFetchError] = useState("");
+  const [isLoading, setIsLoading] = useState(true); // Added isLoading state
 
   const [productData, setProductData] = useState(null);
 
@@ -63,8 +64,6 @@ const EcommerceEditProduct = () => {
   // Fetch existing product data
   useEffect(() => {
     const fetchProduct = async () => {
-      console.log("Product ID from params:", productId);
-
       if (!productId) {
         console.error("Product ID is undefined");
         toast.error("Invalid product ID");
@@ -73,16 +72,16 @@ const EcommerceEditProduct = () => {
       }
 
       try {
+        setIsLoading(true); // Start loading
         const product = await db.Products.get(productId);
-        console.log("Fetched product data:", product);
         setProductData(product);
         setProductType(product.isWholesaleProduct ? "wholesale" : "retail");
         setExistingImages(product.images || []);
-        setIsLoading(false);
       } catch (error) {
         console.error("Failed to fetch product:", error);
         toast.error("Failed to fetch product data");
-        setIsLoading(false);
+      } finally {
+        setIsLoading(false); // Stop loading
       }
     };
 
@@ -102,13 +101,11 @@ const EcommerceEditProduct = () => {
       })
     );
     setSelectedFiles((prevFiles) => [...prevFiles, ...previewFiles]);
-    console.log("Selected Files after drop:", [...selectedFiles, ...previewFiles]);
   };
 
   // Remove a selected image
   const removeSelectedFile = (file) => {
     setSelectedFiles((prevFiles) => prevFiles.filter((f) => f !== file));
-    console.log("Selected Files after removal:", selectedFiles.filter((f) => f !== file));
   };
 
   // Remove an existing image and delete it from storage
@@ -188,7 +185,6 @@ const EcommerceEditProduct = () => {
     }),
     onSubmit: async (values) => {
       try {
-        console.log("Form Values on Submit:", values); // Debugging
         let imageIds = existingImages; // Start with existing images
 
         // Upload new images to Appwrite storage
@@ -209,7 +205,6 @@ const EcommerceEditProduct = () => {
           // Filter out any null entries resulting from failed uploads
           const successfulUploads = uploadedImageIds.filter((id) => id !== null);
           imageIds = [...imageIds, ...successfulUploads];
-          console.log("Uploaded Image IDs:", successfulUploads); // Debugging
         }
 
         // Prepare the updated product data
@@ -230,8 +225,6 @@ const EcommerceEditProduct = () => {
           isWholesaleProduct: values.productType === "wholesale",
         };
 
-        console.log("Updated Product Data:", updatedProduct); // Debugging
-
         // Update the product in the Appwrite database
         await db.Products.update(productId, updatedProduct);
         toast.success("Product updated successfully");
@@ -245,9 +238,6 @@ const EcommerceEditProduct = () => {
 
   // Get image preview URL
   const getImageURL = (imageId) => {
-    // Implement this function based on your storage service.
-    // For example, if using Appwrite's storage service, you might need to construct the URL accordingly.
-    // Here's a placeholder implementation:
     return storageServices.images.getFilePreview(imageId);
   };
 
@@ -256,7 +246,20 @@ const EcommerceEditProduct = () => {
     return (
       <div className="page-content">
         <Container fluid>
-          <h3>Loading...</h3>
+          {/* Loading Indicator */}
+          <div className="py-4 text-center">
+            <div>
+              <lord-icon
+                src="https://cdn.lordicon.com/msoeawqm.json"
+                trigger="loop"
+                colors="primary:#405189,secondary:#0ab39c"
+                style={{ width: "72px", height: "72px" }}
+              ></lord-icon>
+            </div>
+            <div className="mt-4">
+              <h5>Loading data!</h5>
+            </div>
+          </div>
         </Container>
       </div>
     );
@@ -266,7 +269,7 @@ const EcommerceEditProduct = () => {
     <div className="page-content">
       <ToastContainer closeButton={false} limit={1} />
       <Container fluid>
-        <h3>Edit Product</h3>
+        <BreadCrumb title="Edit Product" pageTitle="Ecommerce" />
         <Form onSubmit={formik.handleSubmit}>
           {/* Display Submission Error */}
           {fetchError && (
@@ -292,7 +295,7 @@ const EcommerceEditProduct = () => {
                           checked={formik.values.productType === "retail"}
                           onChange={() => {
                             formik.setFieldValue("productType", "retail");
-                            setProductType("retail"); // Update local state if needed
+                            setProductType("retail");
                           }}
                           className="form-check-input"
                         />
@@ -309,7 +312,7 @@ const EcommerceEditProduct = () => {
                           checked={formik.values.productType === "wholesale"}
                           onChange={() => {
                             formik.setFieldValue("productType", "wholesale");
-                            setProductType("wholesale"); // Update local state if needed
+                            setProductType("wholesale");
                           }}
                           className="form-check-input"
                         />
@@ -340,9 +343,7 @@ const EcommerceEditProduct = () => {
                       onBlur={formik.handleBlur}
                       onChange={formik.handleChange}
                       invalid={
-                        formik.errors.name && formik.touched.name
-                          ? true
-                          : false
+                        formik.errors.name && formik.touched.name ? true : false
                       }
                     />
                     {formik.errors.name && formik.touched.name ? (
@@ -398,7 +399,10 @@ const EcommerceEditProduct = () => {
                               safeRejectedFiles.length > 0 &&
                               safeRejectedFiles[0].size > 5242880;
                             return (
-                              <div className="dropzone dz-clickable" {...getRootProps()}>
+                              <div
+                                className="dropzone dz-clickable"
+                                {...getRootProps()}
+                              >
                                 {/* Render the input element */}
                                 <input {...getInputProps()} />
 
@@ -534,9 +538,7 @@ const EcommerceEditProduct = () => {
                           onBlur={formik.handleBlur}
                           onChange={formik.handleChange}
                           invalid={
-                            formik.errors.price && formik.touched.price
-                              ? true
-                              : false
+                            formik.errors.price && formik.touched.price ? true : false
                           }
                         />
                         {formik.errors.price && formik.touched.price ? (
@@ -569,8 +571,7 @@ const EcommerceEditProduct = () => {
                           onBlur={formik.handleBlur}
                           onChange={formik.handleChange}
                           invalid={
-                            formik.errors.stockQuantity &&
-                            formik.touched.stockQuantity
+                            formik.errors.stockQuantity && formik.touched.stockQuantity
                               ? true
                               : false
                           }
@@ -643,15 +644,11 @@ const EcommerceEditProduct = () => {
                     onBlur={formik.handleBlur}
                     onChange={formik.handleChange}
                     invalid={
-                      formik.errors.tags && formik.touched.tags
-                        ? true
-                        : false
+                      formik.errors.tags && formik.touched.tags ? true : false
                     }
                   />
                   {formik.errors.tags && formik.touched.tags ? (
-                    <FormFeedback type="invalid">
-                      {formik.errors.tags}
-                    </FormFeedback>
+                    <FormFeedback type="invalid">{formik.errors.tags}</FormFeedback>
                   ) : null}
                 </CardBody>
               </Card>
@@ -696,8 +693,7 @@ const EcommerceEditProduct = () => {
                         onBlur={formik.handleBlur}
                         onChange={formik.handleChange}
                         invalid={
-                          formik.errors.discountPrice &&
-                          formik.touched.discountPrice
+                          formik.errors.discountPrice && formik.touched.discountPrice
                             ? true
                             : false
                         }

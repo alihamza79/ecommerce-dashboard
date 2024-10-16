@@ -1,3 +1,5 @@
+// src/pages/Blog/BlogEdit.js
+
 import React, { useState, useEffect } from "react";
 import {
   Card,
@@ -31,12 +33,13 @@ const BlogEdit = () => {
   const [fileRejectionErrors, setFileRejectionErrors] = useState([]);
   const [existingImageUrl, setExistingImageUrl] = useState(null);
   const [blogData, setBlogData] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Added isLoading state
 
   // Fetch blog data
   useEffect(() => {
     const fetchBlog = async () => {
       try {
+        setIsLoading(true); // Start loading
         const blog = await db.blogs.get(id);
         setBlogData(blog);
 
@@ -45,12 +48,11 @@ const BlogEdit = () => {
           blog.imageUrl
         );
         setExistingImageUrl(imageUrlResponse.href);
-
-        setIsLoading(false);
       } catch (error) {
         console.error("Failed to fetch blog:", error);
         toast.error("Failed to fetch blog data");
-        setIsLoading(false);
+      } finally {
+        setIsLoading(false); // Stop loading
       }
     };
     fetchBlog();
@@ -145,7 +147,20 @@ const BlogEdit = () => {
     return (
       <div className="page-content">
         <Container fluid>
-          <h3>Loading...</h3>
+          {/* Loading Indicator */}
+          <div className="py-4 text-center">
+            <div>
+              <lord-icon
+                src="https://cdn.lordicon.com/msoeawqm.json"
+                trigger="loop"
+                colors="primary:#405189,secondary:#0ab39c"
+                style={{ width: "72px", height: "72px" }}
+              ></lord-icon>
+            </div>
+            <div className="mt-4">
+              <h5>Loading data!</h5>
+            </div>
+          </div>
         </Container>
       </div>
     );

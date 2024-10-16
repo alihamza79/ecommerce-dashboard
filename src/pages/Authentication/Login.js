@@ -19,8 +19,9 @@ import { Link, useNavigate } from "react-router-dom";
 import * as Yup from "yup";
 import { useFormik } from "formik";
 import { signIn } from '../../appwrite/Services/authServices';
-import logoLight from "../../assets/images/logo-light.png";
+// import logo from "../../assets/images/logo-light.png";
 import { resetLoginFlag } from "../../slices/thunks"; // Adjust based on your project structure
+import logo from "../../assets/images/logo.png";
 
 const Login = () => {
   const dispatch = useDispatch();
@@ -81,7 +82,7 @@ const Login = () => {
                 <div className="text-center mt-sm-5 mb-4 text-white-50">
                   <div>
                     <Link to="/" className="d-inline-block auth-logo">
-                      <img src={logoLight} alt="" height="20" />
+                      <img src={logo} alt="" width="70" />
                     </Link>
                   </div>
                   <p className="mt-3 fs-15 fw-medium">Admin Dashboard</p>
@@ -166,47 +167,13 @@ const Login = () => {
                           </Button>
                         </div>
 
-                        <div className="mt-4 text-center">
-                          <div className="signin-other-title">
-                            <h5 className="fs-13 mb-4 title">Sign In with</h5>
-                          </div>
-                          <div>
-                            <Button
-                              color="primary"
-                              className="btn-icon me-1"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                // Implement social login via Appwrite if needed
-                              }}
-                            >
-                              <i className="ri-facebook-fill fs-16" />
-                            </Button>
-                            <Button
-                              color="danger"
-                              className="btn-icon me-1"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                // Implement social login via Appwrite if needed
-                              }}
-                            >
-                              <i className="ri-google-fill fs-16" />
-                            </Button>
-                            <Button color="dark" className="btn-icon">
-                              <i className="ri-github-fill fs-16"></i>
-                            </Button>{" "}
-                            <Button color="info" className="btn-icon">
-                              <i className="ri-twitter-fill fs-16"></i>
-                            </Button>
-                          </div>
-                        </div>
+                        
                       </Form>
                     </div>
                   </CardBody>
                 </Card>
 
-                <div className="mt-4 text-center">
-                  <p className="mb-0">Don't have an account? <Link to="/register" className="fw-semibold text-primary text-decoration-underline"> Signup </Link></p>
-                </div>
+               
 
               </Col>
             </Row>

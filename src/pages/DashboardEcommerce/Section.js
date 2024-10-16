@@ -1,15 +1,21 @@
 import React from 'react';
 import { Col, Row } from 'reactstrap';
-import Flatpickr from "react-flatpickr";
+import { useNavigate } from 'react-router-dom';
 
 const Section = (props) => {
+    const navigate = useNavigate(); // Initialize the navigate function
+
+    const handleAddProduct = () => {
+        navigate('/apps-ecommerce-add-product'); // Navigate to the add product page
+    };
+
     return (
         <React.Fragment>
             <Row className="mb-3 pb-1">
                 <Col xs={12}>
                     <div className="d-flex align-items-lg-center flex-lg-row flex-column">
                         <div className="flex-grow-1">
-                            <h4 className="fs-16 mb-1">Good Morning, Anna!</h4>
+                            <h4 className="fs-16 mb-1">Good Morning !</h4>
                             <p className="text-muted mb-0">Here's what's happening with your store today.</p>
                         </div>
                         <div className="mt-3 mt-lg-0">
@@ -29,7 +35,13 @@ const Section = (props) => {
                                         </div>
                                     </div>
                                     <div className="col-auto">
-                                        <button type="button" className="btn btn-soft-success"><i className="ri-add-circle-line align-middle me-1"></i> Add Product</button>
+                                        <button 
+                                            type="button" 
+                                            className="btn btn-soft-success"
+                                            onClick={handleAddProduct} // Add onClick handler for navigation
+                                        >
+                                            <i className="ri-add-circle-line align-middle me-1"></i> Add Product
+                                        </button>
                                     </div>
                                     <div className="col-auto">
                                         {/* <button type="button" className="btn btn-soft-info btn-icon waves-effect waves-light layout-rightside-btn" onClick={props.rightClickBtn} ><i className="ri-pulse-line"></i></button> */}

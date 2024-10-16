@@ -94,7 +94,7 @@ const RevenueCharts = ({ dataColors, series, categories }) => {
         {
           formatter: function (y) {
             if (typeof y !== "undefined") {
-              return "$" + y.toFixed(2) + "k";
+              return "£" + y.toFixed(2);
             }
             return y;
           },
@@ -102,7 +102,7 @@ const RevenueCharts = ({ dataColors, series, categories }) => {
         {
           formatter: function (y) {
             if (typeof y !== "undefined") {
-              return y.toFixed(0) + " Sales";
+              return y.toFixed(0) + " Orders";
             }
             return y;
           },

@@ -1,11 +1,13 @@
+// src/components/DashboardEcommerceCharts.js
+
 import React from "react";
 import ReactApexChart from "react-apexcharts";
 import getChartColorsArray from "../../Components/Common/ChartsDynamicColor";
 
-const RevenueCharts = ({ dataColors, series }) => {
-  var linechartcustomerColors = getChartColorsArray(dataColors);
+const RevenueCharts = ({ dataColors, series, categories }) => {
+  const linechartcustomerColors = getChartColorsArray(dataColors);
 
-  var options = {
+  const options = {
     chart: {
       height: 370,
       type: "line",
@@ -29,20 +31,7 @@ const RevenueCharts = ({ dataColors, series }) => {
       },
     },
     xaxis: {
-      categories: [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec",
-      ],
+      categories: categories, // Dynamic categories
       axisTicks: {
         show: false,
       },
@@ -121,9 +110,11 @@ const RevenueCharts = ({ dataColors, series }) => {
       ],
     },
   };
+
   return (
     <React.Fragment>
-      <ReactApexChart dir="ltr"
+      <ReactApexChart
+        dir="ltr"
         options={options}
         series={series}
         type="line"
@@ -133,6 +124,8 @@ const RevenueCharts = ({ dataColors, series }) => {
     </React.Fragment>
   );
 };
+
+
 
 const StoreVisitsCharts = ({ dataColors }) => {
   var chartDonutBasicColors = getChartColorsArray(dataColors);

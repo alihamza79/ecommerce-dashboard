@@ -125,13 +125,17 @@ const RevenueCharts = ({ dataColors, series, categories }) => {
   );
 };
 
+// src/components/DashboardEcommerceCharts.js
+
+// src/components/DashboardEcommerceCharts.js
 
 
-const StoreVisitsCharts = ({ dataColors }) => {
-  var chartDonutBasicColors = getChartColorsArray(dataColors);
-  const series = [44, 55, 41, 17, 15];
-  var options = {
-    labels: ["Direct", "Social", "Email", "Other", "Referrals"],
+
+const StoreVisitsCharts = ({ dataColors, series, labels }) => {
+  const chartColors = getChartColorsArray(dataColors);
+
+  const options = {
+    labels: labels, // Dynamic labels passed as a prop
     chart: {
       height: 333,
       type: "donut",
@@ -147,11 +151,30 @@ const StoreVisitsCharts = ({ dataColors }) => {
         enabled: false,
       },
     },
-    colors: chartDonutBasicColors,
+    colors: chartColors,
+    tooltip: {
+      y: {
+        formatter: function (val, { series, seriesIndex, dataPointIndex, w }) {
+          // Check if 'w' and 'w.globals.seriesPercent' exist
+          if (
+            w &&
+            w.globals &&
+            w.globals.seriesPercent &&
+            w.globals.seriesPercent[seriesIndex] !== undefined
+          ) {
+            const percent = w.globals.seriesPercent[seriesIndex];
+            return `${val} Sales (${percent.toFixed(2)}%)`;
+          }
+          return `${val} Sales`;
+        },
+      },
+    },
   };
+
   return (
     <React.Fragment>
-      <ReactApexChart dir="ltr"
+      <ReactApexChart
+        dir="ltr"
         options={options}
         series={series}
         type="donut"
@@ -161,5 +184,6 @@ const StoreVisitsCharts = ({ dataColors }) => {
     </React.Fragment>
   );
 };
+
 
 export { RevenueCharts, StoreVisitsCharts };

@@ -19,19 +19,44 @@ import {
 } from "reactstrap";
 import { useNavigate } from "react-router-dom";
 import db from "../../../appwrite/Services/dbServices";
-import storageServices from "../../../appwrite/Services/storageServices"; // Import storage services
+import storageServices from "../../../appwrite/Services/storageServices";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import BreadCrumb from "../../../Components/Common/BreadCrumb";
+import Select from "react-select";
 
 const EcommerceAddCategory = () => {
   const navigate = useNavigate();
-  const [selectedFile, setSelectedFile] = useState(null); // Single image state
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [categoryType, setCategoryType] = useState("category");
+  const [categories, setCategories] = useState([]);
+  const [parentCategoryId, setParentCategoryId] = useState(null);
 
-  // Handle file upload (for preview, store the selected file in state)
+  // Fetch categories for parent selection
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await db.Categories.list();
+        const categoryOptions = response.documents.map((cat) => ({
+          label: cat.name,
+          value: cat.$id,
+        }));
+        setCategories(categoryOptions);
+      } catch (error) {
+        console.error("Failed to fetch categories:", error);
+        toast.error("Failed to fetch categories for parent selection.");
+      }
+    };
+
+    if (categoryType === "subcategory") {
+      fetchCategories();
+    }
+  }, [categoryType]);
+
+  // Handle file upload
   const handleAcceptedFiles = (files) => {
-    if (files.length > 0) {
-      const file = files[0]; // Only one image allowed
+    if (files && files.length > 0) {
+      const file = files[0];
       const previewFile = Object.assign(file, {
         preview: URL.createObjectURL(file),
       });
@@ -39,12 +64,12 @@ const EcommerceAddCategory = () => {
     }
   };
 
-  // Remove the selected image
+  // Remove selected image
   const removeSelectedFile = () => {
     setSelectedFile(null);
   };
 
-  // Cleanup image preview to avoid memory leaks
+  // Cleanup image preview
   useEffect(() => {
     return () => {
       if (selectedFile) {
@@ -53,7 +78,7 @@ const EcommerceAddCategory = () => {
     };
   }, [selectedFile]);
 
-  // Initialize Formik for form handling
+  // Formik setup
   const formik = useFormik({
     initialValues: {
       name: "",
@@ -67,28 +92,27 @@ const EcommerceAddCategory = () => {
       try {
         let imageId = null;
 
-        // Upload the selected image to Appwrite storage on form submission
-        if (selectedFile) {
+        // Upload image if it's a main category
+        if (selectedFile && categoryType === "category") {
           const storedFile = await storageServices.images.createFile(selectedFile);
-          imageId = storedFile.$id; // Store the image ID
+          imageId = storedFile.$id;
         }
 
-        // Prepare the category data to save
+        // Prepare category data
         const newCategory = {
           name: values.name,
-          description: values.description,
-          image: imageId ? [imageId] : [], // Store as an array
+          description: categoryType === "category" ? values.description : "",
+          image: imageId ? [imageId] : [],
+          parentCategoryId: categoryType === "subcategory" ? parentCategoryId : null,
         };
 
-        // Save the category to the Appwrite Categories collection
+        // Save category
         await db.Categories.create(newCategory);
         toast.success("Category added successfully");
         resetForm();
         setSelectedFile(null);
-        // Redirect to categories list after a short delay
-        setTimeout(() => {
-          navigate("/apps-ecommerce-categories");
-        }, 1500);
+        setParentCategoryId(null);
+        navigate("/apps-ecommerce-categories");
       } catch (error) {
         console.error("Failed to add category:", error);
         toast.error("Failed to add category. Please try again.");
@@ -111,15 +135,51 @@ const EcommerceAddCategory = () => {
           <Col lg={8} className="mx-auto">
             <Card>
               <CardHeader>
-                <h5 className="card-title mb-0">Create New Category</h5>
+                <h5 className="card-title mb-0">Create New Category/Subcategory</h5>
               </CardHeader>
               <CardBody>
+                {/* Category Type Selection */}
+                <div className="mb-3">
+                  <Label className="form-label">Category Type</Label>
+                  <div>
+                    <div className="form-check form-check-inline">
+                      <Input
+                        type="radio"
+                        name="categoryType"
+                        id="category"
+                        value="category"
+                        checked={categoryType === "category"}
+                        onChange={() => setCategoryType("category")}
+                        className="form-check-input"
+                      />
+                      <Label className="form-check-label" htmlFor="category">
+                        Category
+                      </Label>
+                    </div>
+                    <div className="form-check form-check-inline">
+                      <Input
+                        type="radio"
+                        name="categoryType"
+                        id="subcategory"
+                        value="subcategory"
+                        checked={categoryType === "subcategory"}
+                        onChange={() => setCategoryType("subcategory")}
+                        className="form-check-input"
+                      />
+                      <Label className="form-check-label" htmlFor="subcategory">
+                        Subcategory
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Category Creation Form */}
                 <Form onSubmit={formik.handleSubmit}>
                   {/* Category Name Field */}
                   <div className="mb-3">
                     <Label className="form-label" htmlFor="category-name">
-                      Category Name <span className="text-danger">*</span>
+                      {categoryType === "category" ? "Category Name" : "Subcategory Name"}{" "}
+                      <span className="text-danger">*</span>
                     </Label>
                     <Input
                       type="text"
@@ -130,138 +190,163 @@ const EcommerceAddCategory = () => {
                       value={formik.values.name}
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
-                      invalid={
-                        formik.touched.name && formik.errors.name ? true : false
-                      }
+                      invalid={formik.touched.name && formik.errors.name ? true : false}
                     />
                     {formik.touched.name && formik.errors.name ? (
                       <FormFeedback>{formik.errors.name}</FormFeedback>
                     ) : null}
                   </div>
 
-                  {/* Category Description Field */}
-                  <div className="mb-3">
-                    <Label className="form-label" htmlFor="category-description">
-                      Description
-                    </Label>
-                    <Input
-                      type="textarea"
-                      className="form-control"
-                      id="category-description"
-                      name="description"
-                      placeholder="Enter category description"
-                      value={formik.values.description}
-                      onChange={formik.handleChange}
-                      onBlur={formik.handleBlur}
-                      invalid={
-                        formik.touched.description && formik.errors.description
-                          ? true
-                          : false
-                      }
-                    />
-                    {formik.touched.description && formik.errors.description ? (
-                      <FormFeedback>{formik.errors.description}</FormFeedback>
-                    ) : null}
-                  </div>
-
-                  {/* Category Image Upload */}
-                  <Card className="mb-3">
-                    <CardHeader>
-                      <h5 className="card-title mb-0">Category Image</h5>
-                    </CardHeader>
-                    <CardBody>
-                      <Dropzone
-                        onDrop={handleAcceptedFiles}
-                        multiple={false} // Only one image allowed
-                        accept={{
-                          "image/*": [".png", ".jpg", ".jpeg", ".gif"],
-                        }}
-                        maxSize={5242880} // 5MB
-                      >
-                        {({
-                          getRootProps,
-                          getInputProps,
-                          isDragActive,
-                          isDragReject,
-                          rejectedFiles,
-                        }) => {
-                          const safeRejectedFiles = Array.isArray(rejectedFiles)
-                            ? rejectedFiles
-                            : [];
-                          const isFileTooLarge =
-                            safeRejectedFiles.length > 0 &&
-                            safeRejectedFiles[0].size > 5242880;
-
-                          return (
-                            <div
-                              className="dropzone dz-clickable"
-                              {...getRootProps()}
-                            >
-                              {/* Render the input element */}
-                              <input {...getInputProps()} />
-
-                              <div className="dz-message needsclick">
-                                <div className="mb-3 mt-5">
-                                  <i className="display-4 text-muted ri-upload-cloud-2-fill" />
-                                </div>
-                                <h5>Drop an image here or click to upload.</h5>
-                                {isDragActive && !isDragReject && (
-                                  <p className="mt-2 text-primary">
-                                    Drop the files here...
-                                  </p>
-                                )}
-                                {isDragReject && (
-                                  <p className="mt-2 text-danger">
-                                    Unsupported file type.
-                                  </p>
-                                )}
-                                {isFileTooLarge && (
-                                  <p className="mt-2 text-danger">
-                                    File is too large.
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        }}
-                      </Dropzone>
-
-                      {/* Image Preview */}
-                      {selectedFile && (
-                        <div className="mt-3">
-                          <div className="position-relative d-inline-block">
-                            <img
-                              src={selectedFile.preview}
-                              alt="Selected"
-                              className="img-thumbnail"
-                              style={{
-                                width: "200px",
-                                height: "200px",
-                                objectFit: "cover",
-                              }}
-                            />
-                            <Button
-                              color="danger"
-                              size="sm"
-                              className="position-absolute top-0 end-0"
-                              onClick={removeSelectedFile}
-                            >
-                              <i className="ri-close-line"></i>
-                            </Button>
-                          </div>
+                  {/* Parent Category Selection for Subcategory */}
+                  {categoryType === "subcategory" && (
+                    <div className="mb-3">
+                      <Label className="form-label" htmlFor="parent-category">
+                        Parent Category <span className="text-danger">*</span>
+                      </Label>
+                      <Select
+                        id="parent-category"
+                        options={categories}
+                        value={categories.find((cat) => cat.value === parentCategoryId)}
+                        onChange={(option) => setParentCategoryId(option.value)}
+                        placeholder="Select parent category"
+                      />
+                      {!parentCategoryId && (
+                        <div className="text-danger mt-1">
+                          Please select a parent category.
                         </div>
                       )}
-                    </CardBody>
-                  </Card>
+                    </div>
+                  )}
+
+                  {/* Category Description Field */}
+                  {categoryType === "category" && (
+                    <div className="mb-3">
+                      <Label className="form-label" htmlFor="category-description">
+                        Description
+                      </Label>
+                      <Input
+                        type="textarea"
+                        className="form-control"
+                        id="category-description"
+                        name="description"
+                        placeholder="Enter category description"
+                        value={formik.values.description}
+                        onChange={formik.handleChange}
+                        onBlur={formik.handleBlur}
+                        invalid={
+                          formik.touched.description && formik.errors.description
+                            ? true
+                            : false
+                        }
+                      />
+                      {formik.touched.description && formik.errors.description ? (
+                        <FormFeedback>{formik.errors.description}</FormFeedback>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {/* Category Image Upload */}
+                  {categoryType === "category" && (
+                    <Card className="mb-3">
+                      <CardHeader>
+                        <h5 className="card-title mb-0">Category Image</h5>
+                      </CardHeader>
+                      <CardBody>
+                        <Dropzone
+                          onDrop={handleAcceptedFiles}
+                          multiple={false} // Only one image allowed
+                          accept={{
+                            "image/*": [".png", ".jpg", ".jpeg", ".gif"],
+                          }}
+                          maxSize={5242880} // 5MB
+                        >
+                          {({
+                            getRootProps,
+                            getInputProps,
+                            isDragActive,
+                            isDragReject,
+                            rejectedFiles,
+                          }) => {
+                            const safeRejectedFiles = Array.isArray(rejectedFiles)
+                              ? rejectedFiles
+                              : [];
+                            const isFileTooLarge =
+                              safeRejectedFiles.length > 0 &&
+                              safeRejectedFiles[0].size > 5242880;
+
+                            return (
+                              <div className="dropzone dz-clickable" {...getRootProps()}>
+                                {/* Render the input element */}
+                                <input {...getInputProps()} />
+
+                                <div className="dz-message needsclick">
+                                  <div className="mb-3 mt-5">
+                                    <i className="display-4 text-muted ri-upload-cloud-2-fill" />
+                                  </div>
+                                  <h5>Drop an image here or click to upload.</h5>
+                                  {isDragActive && !isDragReject && (
+                                    <p className="mt-2 text-primary">
+                                      Drop the files here...
+                                    </p>
+                                  )}
+                                  {isDragReject && (
+                                    <p className="mt-2 text-danger">
+                                      Unsupported file type.
+                                    </p>
+                                  )}
+                                  {isFileTooLarge && (
+                                    <p className="mt-2 text-danger">File is too large.</p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          }}
+                        </Dropzone>
+
+                        {/* Image Preview */}
+                        {selectedFile && (
+                          <div className="mt-3">
+                            <div className="position-relative d-inline-block">
+                              <img
+                                src={selectedFile.preview}
+                                alt="Selected"
+                                className="img-thumbnail"
+                                style={{
+                                  width: "200px",
+                                  height: "200px",
+                                  objectFit: "cover",
+                                }}
+                              />
+                              <Button
+                                color="danger"
+                                size="sm"
+                                className="position-absolute top-0 end-0"
+                                onClick={removeSelectedFile}
+                              >
+                                <i className="ri-close-line"></i>
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </CardBody>
+                    </Card>
+                  )}
 
                   {/* Submit Button */}
                   <div className="text-end">
                     <Button
                       type="submit"
                       color="success"
-                      disabled={formik.isSubmitting}
+                      disabled={
+                        formik.isSubmitting ||
+                        (categoryType === "subcategory" && !parentCategoryId)
+                      }
                     >
-                      {formik.isSubmitting ? "Submitting..." : "Add Category"}
+                      {formik.isSubmitting
+                        ? "Submitting..."
+                        : categoryType === "category"
+                        ? "Add Category"
+                        : "Add Subcategory"}
                     </Button>
                   </div>
                 </Form>

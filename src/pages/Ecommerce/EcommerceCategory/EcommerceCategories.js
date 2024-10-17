@@ -27,17 +27,17 @@ import { Query } from "appwrite";
 const EcommerceCategories = () => {
   const [categoryList, setCategoryList] = useState([]);
   const [filteredCategoryList, setFilteredCategoryList] = useState([]);
-  const [isLoading, setIsLoading] = useState(true); // Added isLoading state
+  const [isLoading, setIsLoading] = useState(true);
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleteModalMulti, setDeleteModalMulti] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState(null);
-  const [dele, setDele] = useState(0); // Count of selected categories for bulk delete
+  const [dele, setDele] = useState(0);
 
   // Fetch categories from Appwrite on component mount
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        setIsLoading(true); // Set loading to true when fetching starts
+        setIsLoading(true);
         const response = await db.Categories.list();
         const categories = response.documents.map((category) => ({
           ...category,
@@ -48,7 +48,7 @@ const EcommerceCategories = () => {
         console.error("Failed to fetch categories:", error);
         toast.error("Failed to fetch categories");
       } finally {
-        setIsLoading(false); // Set loading to false when fetching is done
+        setIsLoading(false);
       }
     };
 
@@ -98,8 +98,12 @@ const EcommerceCategories = () => {
         await deleteProductsByCategory(categoryToDelete.$id);
 
         // Delete associated category image if it exists
-        if (categoryToDelete.image) {
-          await storageServices.images.deleteFile(categoryToDelete.image);
+        if (
+          categoryToDelete.image &&
+          Array.isArray(categoryToDelete.image) &&
+          categoryToDelete.image.length > 0
+        ) {
+          await storageServices.images.deleteFile(categoryToDelete.image[0]);
         }
 
         // Delete the category document
@@ -150,8 +154,12 @@ const EcommerceCategories = () => {
           await deleteProductsByCategory(categoryId);
 
           // Delete associated category image if it exists
-          if (category.image) {
-            await storageServices.images.deleteFile(category.image);
+          if (
+            category.image &&
+            Array.isArray(category.image) &&
+            category.image.length > 0
+          ) {
+            await storageServices.images.deleteFile(category.image[0]);
           }
 
           // Delete the category
@@ -208,7 +216,9 @@ const EcommerceCategories = () => {
         accessorKey: "image",
         enableColumnFilter: false,
         cell: (cell) => {
-          const imageId = cell.getValue();
+          const imageArray = cell.getValue();
+          const imageId =
+            imageArray && imageArray.length > 0 ? imageArray[0] : null;
           return imageId ? (
             <img
               src={getImageURL(imageId)}
@@ -246,6 +256,22 @@ const EcommerceCategories = () => {
             {cell.getValue()}
           </Link>
         ),
+      },
+      {
+        header: "Parent Category",
+        accessorKey: "parentCategoryId",
+        enableColumnFilter: false,
+        cell: (cell) => {
+          const parentCategoryId = cell.getValue();
+          if (parentCategoryId) {
+            const parentCategory = categoryList.find(
+              (c) => c.$id === parentCategoryId
+            );
+            return parentCategory ? parentCategory.name : "Unknown";
+          } else {
+            return "N/A";
+          }
+        },
       },
       {
         header: "Description",

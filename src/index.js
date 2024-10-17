@@ -6,19 +6,27 @@ import { BrowserRouter } from "react-router-dom";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import rootReducer from "./slices";
+import { QueryClient, QueryClientProvider } from "react-query";
+const queryClient = new QueryClient();
 
 const store = configureStore({ reducer: rootReducer, devTools: true });
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
 root.render(
+  <QueryClientProvider client={queryClient}>
+
   <Provider store={store}>
+
     <React.Fragment>
       <BrowserRouter basename={process.env.PUBLIC_URL}>
         <App />
       </BrowserRouter>
     </React.Fragment>
+
   </Provider>
+  </QueryClientProvider>
+
 );
 
 // If you want to start measuring performance in your app, pass a function

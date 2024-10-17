@@ -25,6 +25,7 @@ import storageServices from "../../../appwrite/Services/storageServices";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { Query } from "appwrite"; // Import Query from Appwrite SDK
+import { useQuery } from "react-query"; // Import useQuery from React Query
 
 const EcommerceProducts = () => {
   // State variables
@@ -43,81 +44,94 @@ const EcommerceProducts = () => {
   const [deleteModalMulti, setDeleteModalMulti] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
   const [dele, setDele] = useState(0);
-  const [isLoading, setIsLoading] = useState(true); // Added loading state
+
+  // Fetch products and categories using useQuery
+  const { data: productsData, isLoading: isProductsLoading } = useQuery(
+    "products",
+    async () => {
+      let products = [];
+      let offset = 0;
+      const limit = 100; // Maximum limit per request
+
+      // Fetch products in batches until all are fetched
+      while (true) {
+        const productResponse = await db.Products.list([
+          Query.limit(limit),
+          Query.offset(offset),
+        ]);
+
+        // Add the fetched products to the array
+        products = products.concat(productResponse.documents);
+
+        // If the number of fetched products is less than the limit, we've fetched all products
+        if (productResponse.documents.length < limit) {
+          break;
+        }
+
+        // Increment the offset for the next batch
+        offset += limit;
+      }
+
+      // Map and parse the product data
+      products = products.map((product) => ({
+        ...product,
+        price: parseFloat(product.price),
+        isOnSale: Boolean(product.isOnSale),
+        isWholesaleProduct: Boolean(product.isWholesaleProduct),
+      }));
+
+      return products;
+    },
+    {
+      staleTime: Infinity, // Data is considered fresh indefinitely
+      cacheTime: Infinity, // Cache data indefinitely
+    }
+  );
+
+  const { data: categoriesData, isLoading: isCategoriesLoading } = useQuery(
+    "categories",
+    async () => {
+      const categoryResponse = await db.Categories.list();
+      return categoryResponse.documents;
+    },
+    {
+      staleTime: Infinity,
+      cacheTime: Infinity,
+    }
+  );
 
   useEffect(() => {
-    // Fetch products and categories from Appwrite
-    const fetchData = async () => {
-      try {
-        setIsLoading(true); // Set loading to true when fetching starts
-        // Initialize variables for pagination
-        let products = [];
-        let offset = 0;
-        const limit = 100; // Maximum limit per request
+    if (productsData) {
+      setProductList(productsData);
 
-        // Fetch products in batches until all are fetched
-        while (true) {
-          const productResponse = await db.Products.list([
-            Query.limit(limit),
-            Query.offset(offset),
-          ]);
+      // Compute min and max prices
+      const prices = productsData.map((product) => product.price);
+      let minPrice = Math.min(...prices);
+      let maxPrice = Math.max(...prices);
 
-          // Add the fetched products to the array
-          products = products.concat(productResponse.documents);
-
-          // If the number of fetched products is less than the limit, we've fetched all products
-          if (productResponse.documents.length < limit) {
-            break;
-          }
-
-          // Increment the offset for the next batch
-          offset += limit;
-        }
-
-        // Fetch categories
-        const categoryResponse = await db.Categories.list();
-
-        // Map and parse the product data
-        products = products.map((product) => ({
-          ...product,
-          price: parseFloat(product.price),
-          isOnSale: Boolean(product.isOnSale),
-          isWholesaleProduct: Boolean(product.isWholesaleProduct),
-        }));
-        const categories = categoryResponse.documents;
-
-        setProductList(products);
-        setCategories(categories);
-
-        // Compute min and max prices
-        const prices = products.map((product) => product.price);
-        let minPrice = Math.min(...prices);
-        let maxPrice = Math.max(...prices);
-
-        // Handle cases when min and max prices are equal or invalid
-        if (!isFinite(minPrice) || !isFinite(maxPrice)) {
-          minPrice = 0;
-          maxPrice = 1000;
-        } else if (minPrice === maxPrice) {
-          // Adjust maxPrice to be greater than minPrice
-          maxPrice = minPrice + 100;
-        }
-
-        setPriceRange({ min: minPrice, max: maxPrice });
-        setPriceSliderRange({ min: minPrice, max: maxPrice });
-
-        // Initialize minCost and maxCost inputs
-        document.getElementById("minCost").value = minPrice;
-        document.getElementById("maxCost").value = maxPrice;
-      } catch (error) {
-        console.error("Failed to fetch data:", error);
-        toast.error("Failed to fetch data");
-      } finally {
-        setIsLoading(false); // Set loading to false when fetching is done
+      // Handle cases when min and max prices are equal or invalid
+      if (!isFinite(minPrice) || !isFinite(maxPrice)) {
+        minPrice = 0;
+        maxPrice = 1000;
+      } else if (minPrice === maxPrice) {
+        // Adjust maxPrice to be greater than minPrice
+        maxPrice = minPrice + 100;
       }
-    };
-    fetchData();
-  }, []);
+
+      setPriceRange({ min: minPrice, max: maxPrice });
+      setPriceSliderRange({ min: minPrice, max: maxPrice });
+
+      // Initialize minCost and maxCost inputs
+      document.getElementById("minCost").value = minPrice;
+      document.getElementById("maxCost").value = maxPrice;
+    }
+  }, [productsData]);
+
+  useEffect(() => {
+    if (categoriesData) {
+      setCategories(categoriesData);
+    }
+  }, [categoriesData]);
 
   // Filter products whenever filters change
   useEffect(() => {
@@ -599,7 +613,7 @@ const EcommerceProducts = () => {
                   </Row>
                 </div>
                 <div className="card-body pt-0">
-                  {isLoading ? (
+                  {isProductsLoading ? (
                     <div className="py-4 text-center">
                       <div>
                         <lord-icon

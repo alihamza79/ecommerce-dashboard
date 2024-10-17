@@ -286,10 +286,7 @@ const EcommerceProductDetail = () => {
                             </>
                           )}
                         </div>
-                        <div className="text-muted">
-                          ({product.ratingsCount || 0} Customer Review
-                          {product.ratingsCount > 1 ? "s" : ""})
-                        </div>
+                        
                       </div>
 
                       {/* Pricing Widgets */}

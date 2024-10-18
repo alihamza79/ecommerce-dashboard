@@ -34,6 +34,7 @@ const EcommerceAddProduct = () => {
   const [categories, setCategories] = useState([]);
   const [fetchError, setFetchError] = useState("");
   const [submitError, setSubmitError] = useState("");
+  const [imageError, setImageError] = useState(""); // New state for image errors
   const limit = 100; // Adjust the limit as needed
 
   // Function to fetch all categories with pagination
@@ -116,6 +117,7 @@ const EcommerceAddProduct = () => {
     },
     validationSchema: Yup.object({
       name: Yup.string().required("Please enter a product title"),
+      description: Yup.string().required("Please enter a product description"), // Make description required
       price: Yup.number()
         .typeError("Price must be a number")
         .positive("Price must be a positive number")
@@ -149,9 +151,18 @@ const EcommerceAddProduct = () => {
           otherwise: () => Yup.number().notRequired(),
         }),
       tags: Yup.string(),
-      description: Yup.string(),
     }),
     onSubmit: async (values, { resetForm }) => {
+      // Reset errors
+      setSubmitError("");
+      setImageError("");
+
+      // Validate that at least one image is selected
+      if (selectedFiles.length === 0) {
+        setImageError("Please upload at least one product image.");
+        return; // Prevent form submission
+      }
+
       try {
         console.log("Form Values on Submit:", values);
         let imageIds = [];
@@ -307,8 +318,10 @@ const EcommerceAddProduct = () => {
                       editor={ClassicEditor}
                       data={formik.values.description}
                       onChange={(event, editor) => {
-                        formik.setFieldValue("description", editor.getData());
+                        const data = editor.getData();
+                        formik.setFieldValue("description", data);
                       }}
+                      onBlur={() => formik.setFieldTouched("description", true)}
                     />
                     {formik.errors.description && formik.touched.description ? (
                       <FormFeedback type="invalid" className="d-block">
@@ -370,6 +383,13 @@ const EcommerceAddProduct = () => {
                             );
                           }}
                         </Dropzone>
+
+                        {/* Display Image Error */}
+                        {imageError && (
+                          <FormFeedback type="invalid" className="d-block">
+                            {imageError}
+                          </FormFeedback>
+                        )}
 
                         {/* Image Preview */}
                         <div className="list-unstyled mb-0" id="file-previews">

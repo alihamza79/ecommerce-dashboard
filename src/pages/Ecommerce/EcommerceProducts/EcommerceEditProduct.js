@@ -37,6 +37,7 @@ const EcommerceEditProduct = () => {
   const [productType, setProductType] = useState("retail");
   const [fetchError, setFetchError] = useState("");
   const [isLoading, setIsLoading] = useState(true); // Added isLoading state
+  const [imageError, setImageError] = useState(""); // New state for image errors
 
   const [productData, setProductData] = useState(null);
 
@@ -101,11 +102,13 @@ const EcommerceEditProduct = () => {
       })
     );
     setSelectedFiles((prevFiles) => [...prevFiles, ...previewFiles]);
+    setImageError(""); // Reset image error when new files are added
   };
 
   // Remove a selected image
   const removeSelectedFile = (file) => {
     setSelectedFiles((prevFiles) => prevFiles.filter((f) => f !== file));
+    setImageError(""); // Reset image error when a file is removed
   };
 
   // Remove an existing image and delete it from storage
@@ -148,6 +151,7 @@ const EcommerceEditProduct = () => {
     },
     validationSchema: Yup.object({
       name: Yup.string().required("Please enter a product title"),
+      description: Yup.string().required("Please enter a product description"), // Make description required
       price: Yup.number()
         .typeError("Price must be a number")
         .positive("Price must be a positive number")
@@ -181,9 +185,19 @@ const EcommerceEditProduct = () => {
           otherwise: () => Yup.number().notRequired(),
         }),
       tags: Yup.string(),
-      description: Yup.string(),
+      // Removed: description: Yup.string(), // Previously optional
     }),
     onSubmit: async (values) => {
+      // Reset errors
+      setFetchError("");
+      setImageError("");
+
+      // Validate that at least one image exists (existing or new)
+      if ((existingImages.length + selectedFiles.length) === 0) {
+        setImageError("Please upload at least one product image.");
+        return; // Prevent form submission
+      }
+
       try {
         let imageIds = existingImages; // Start with existing images
 
@@ -362,6 +376,7 @@ const EcommerceEditProduct = () => {
                       onChange={(event, editor) => {
                         formik.setFieldValue("description", editor.getData());
                       }}
+                      onBlur={() => formik.setFieldTouched("description", true)}
                     />
                     {formik.errors.description && formik.touched.description ? (
                       <FormFeedback type="invalid" className="d-block">
@@ -398,6 +413,7 @@ const EcommerceEditProduct = () => {
                             const isFileTooLarge =
                               safeRejectedFiles.length > 0 &&
                               safeRejectedFiles[0].size > 5242880;
+
                             return (
                               <div
                                 className="dropzone dz-clickable"
@@ -431,6 +447,13 @@ const EcommerceEditProduct = () => {
                             );
                           }}
                         </Dropzone>
+
+                        {/* Display Image Error */}
+                        {imageError && (
+                          <FormFeedback type="invalid" className="d-block">
+                            {imageError}
+                          </FormFeedback>
+                        )}
 
                         {/* Existing Images */}
                         <div className="list-unstyled mb-0" id="existing-images">

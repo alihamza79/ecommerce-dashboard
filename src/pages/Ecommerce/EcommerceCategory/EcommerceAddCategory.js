@@ -1,3 +1,5 @@
+// src/pages/Ecommerce/EcommerceAddCategory.jsx
+
 import React, { useState, useEffect } from "react";
 import { useFormik } from "formik";
 import * as Yup from "yup";
@@ -22,6 +24,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import BreadCrumb from "../../../Components/Common/BreadCrumb";
 import Select from "react-select";
+import { Query } from "appwrite";
 
 const EcommerceAddCategory = () => {
   const navigate = useNavigate();
@@ -29,26 +32,46 @@ const EcommerceAddCategory = () => {
   const [categoryType, setCategoryType] = useState("category");
   const [categories, setCategories] = useState([]);
   const [parentCategoryId, setParentCategoryId] = useState(null);
+  const [imageError, setImageError] = useState(""); // New state for image errors
+  const [isFetchingCategories, setIsFetchingCategories] = useState(false); // Loading state for fetching categories
 
-  // Fetch categories for parent selection
+  const categoryFetchLimit = 100; // Adjust as needed for batch fetching
+
+  // Helper function to fetch all categories with pagination
+  const fetchAllCategories = async () => {
+    let allCategories = [];
+    let offset = 0;
+    let fetchedCategories = [];
+
+    try {
+      setIsFetchingCategories(true);
+      do {
+        const response = await db.Categories.list([
+          Query.limit(categoryFetchLimit),
+          Query.offset(offset),
+        ]);
+        fetchedCategories = response.documents;
+        allCategories = [...allCategories, ...fetchedCategories];
+        offset += categoryFetchLimit;
+      } while (fetchedCategories.length === categoryFetchLimit);
+      
+      // Map categories to Select options
+      const categoryOptions = allCategories.map((cat) => ({
+        label: cat.name,
+        value: cat.$id,
+      }));
+      setCategories(categoryOptions);
+    } catch (error) {
+      console.error("Failed to fetch categories:", error);
+      toast.error("Failed to fetch categories for parent selection.");
+    } finally {
+      setIsFetchingCategories(false);
+    }
+  };
+
+  // Fetch categories on component mount
   useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const response = await db.Categories.list();
-        // Remove the filter to include all categories
-        const categoryOptions = response.documents.map((cat) => ({
-          label: cat.name,
-          value: cat.$id,
-        }));
-        setCategories(categoryOptions);
-      } catch (error) {
-        console.error("Failed to fetch categories:", error);
-        toast.error("Failed to fetch categories for parent selection.");
-      }
-    };
-
-    // Always fetch categories regardless of category type
-    fetchCategories();
+    fetchAllCategories();
   }, []);
 
   // Handle file upload
@@ -59,12 +82,14 @@ const EcommerceAddCategory = () => {
         preview: URL.createObjectURL(file),
       });
       setSelectedFile(previewFile);
+      setImageError(""); // Reset image error when a file is added
     }
   };
 
   // Remove selected image
   const removeSelectedFile = () => {
     setSelectedFile(null);
+    setImageError(""); // Reset image error when a file is removed
   };
 
   // Cleanup image preview
@@ -84,9 +109,24 @@ const EcommerceAddCategory = () => {
     },
     validationSchema: Yup.object({
       name: Yup.string().required("Please enter a category name"),
-      description: Yup.string(),
+      description: Yup.string().required("Please enter a description"),
     }),
     onSubmit: async (values, { setSubmitting, resetForm }) => {
+      // Reset image error
+      setImageError("");
+
+      // Validate that an image is selected
+      if (!selectedFile) {
+        setImageError("Please upload a category image.");
+        return; // Prevent form submission
+      }
+
+      // If creating a subcategory, ensure a parent category is selected
+      if (categoryType === "subcategory" && !parentCategoryId) {
+        toast.error("Please select a parent category for the subcategory.");
+        return;
+      }
+
       try {
         let imageId = null;
 
@@ -188,7 +228,9 @@ const EcommerceAddCategory = () => {
                       value={formik.values.name}
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
-                      invalid={formik.touched.name && formik.errors.name ? true : false}
+                      invalid={
+                        formik.touched.name && formik.errors.name ? true : false
+                      }
                     />
                     {formik.touched.name && formik.errors.name ? (
                       <FormFeedback>{formik.errors.name}</FormFeedback>
@@ -204,11 +246,22 @@ const EcommerceAddCategory = () => {
                       <Select
                         id="parent-category"
                         options={categories}
+                        isLoading={isFetchingCategories}
+                        isDisabled={isFetchingCategories}
                         value={categories.find((cat) => cat.value === parentCategoryId)}
-                        onChange={(option) => setParentCategoryId(option.value)}
-                        placeholder="Select parent category"
+                        onChange={(option) => setParentCategoryId(option ? option.value : null)}
+                        placeholder={
+                          isFetchingCategories
+                            ? "Loading categories..."
+                            : "Select parent category"
+                        }
+                        noOptionsMessage={() =>
+                          isFetchingCategories
+                            ? "Loading..."
+                            : "No categories available"
+                        }
                       />
-                      {!parentCategoryId && (
+                      {categoryType === "subcategory" && !parentCategoryId && (
                         <div className="text-danger mt-1">
                           Please select a parent category.
                         </div>
@@ -219,7 +272,7 @@ const EcommerceAddCategory = () => {
                   {/* Description Field */}
                   <div className="mb-3">
                     <Label className="form-label" htmlFor="category-description">
-                      Description
+                      Description <span className="text-danger">*</span>
                     </Label>
                     <Input
                       type="textarea"
@@ -296,6 +349,13 @@ const EcommerceAddCategory = () => {
                           );
                         }}
                       </Dropzone>
+
+                      {/* Display Image Error */}
+                      {imageError && (
+                        <div className="text-danger mt-2">
+                          {imageError}
+                        </div>
+                      )}
 
                       {/* Image Preview */}
                       {selectedFile && (

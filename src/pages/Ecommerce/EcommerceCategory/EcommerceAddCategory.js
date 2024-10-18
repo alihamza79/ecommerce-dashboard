@@ -1,5 +1,3 @@
-// src/pages/Ecommerce/EcommerceAddCategory.js
-
 import React, { useState, useEffect } from "react";
 import { useFormik } from "formik";
 import * as Yup from "yup";
@@ -37,10 +35,13 @@ const EcommerceAddCategory = () => {
     const fetchCategories = async () => {
       try {
         const response = await db.Categories.list();
-        const categoryOptions = response.documents.map((cat) => ({
-          label: cat.name,
-          value: cat.$id,
-        }));
+        // Filter categories to only include those without a parentCategoryId (i.e., top-level categories)
+        const categoryOptions = response.documents
+          .filter((cat) => cat.parentCategoryId === null)
+          .map((cat) => ({
+            label: cat.name,
+            value: cat.$id,
+          }));
         setCategories(categoryOptions);
       } catch (error) {
         console.error("Failed to fetch categories:", error);
@@ -48,10 +49,9 @@ const EcommerceAddCategory = () => {
       }
     };
 
-    if (categoryType === "subcategory") {
-      fetchCategories();
-    }
-  }, [categoryType]);
+    // Always fetch categories regardless of category type
+    fetchCategories();
+  }, []);
 
   // Handle file upload
   const handleAcceptedFiles = (files) => {
@@ -92,8 +92,8 @@ const EcommerceAddCategory = () => {
       try {
         let imageId = null;
 
-        // Upload image if it's a main category
-        if (selectedFile && categoryType === "category") {
+        // Upload image
+        if (selectedFile) {
           const storedFile = await storageServices.images.createFile(selectedFile);
           imageId = storedFile.$id;
         }
@@ -101,7 +101,7 @@ const EcommerceAddCategory = () => {
         // Prepare category data
         const newCategory = {
           name: values.name,
-          description: categoryType === "category" ? values.description : "",
+          description: values.description,
           image: imageId ? [imageId] : [],
           parentCategoryId: categoryType === "subcategory" ? parentCategoryId : null,
         };
@@ -173,9 +173,9 @@ const EcommerceAddCategory = () => {
                   </div>
                 </div>
 
-                {/* Category Creation Form */}
+                {/* Category/Subcategory Form */}
                 <Form onSubmit={formik.handleSubmit}>
-                  {/* Category Name Field */}
+                  {/* Name Field */}
                   <div className="mb-3">
                     <Label className="form-label" htmlFor="category-name">
                       {categoryType === "category" ? "Category Name" : "Subcategory Name"}{" "}
@@ -218,119 +218,114 @@ const EcommerceAddCategory = () => {
                     </div>
                   )}
 
-                  {/* Category Description Field */}
-                  {categoryType === "category" && (
-                    <div className="mb-3">
-                      <Label className="form-label" htmlFor="category-description">
-                        Description
-                      </Label>
-                      <Input
-                        type="textarea"
-                        className="form-control"
-                        id="category-description"
-                        name="description"
-                        placeholder="Enter category description"
-                        value={formik.values.description}
-                        onChange={formik.handleChange}
-                        onBlur={formik.handleBlur}
-                        invalid={
-                          formik.touched.description && formik.errors.description
-                            ? true
-                            : false
-                        }
-                      />
-                      {formik.touched.description && formik.errors.description ? (
-                        <FormFeedback>{formik.errors.description}</FormFeedback>
-                      ) : null}
-                    </div>
-                  )}
+                  {/* Description Field */}
+                  <div className="mb-3">
+                    <Label className="form-label" htmlFor="category-description">
+                      Description
+                    </Label>
+                    <Input
+                      type="textarea"
+                      className="form-control"
+                      id="category-description"
+                      name="description"
+                      placeholder="Enter description"
+                      value={formik.values.description}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      invalid={
+                        formik.touched.description && formik.errors.description
+                          ? true
+                          : false
+                      }
+                    />
+                    {formik.touched.description && formik.errors.description ? (
+                      <FormFeedback>{formik.errors.description}</FormFeedback>
+                    ) : null}
+                  </div>
 
-                  {/* Category Image Upload */}
-                  {categoryType === "category" && (
-                    <Card className="mb-3">
-                      <CardHeader>
-                        <h5 className="card-title mb-0">Category Image</h5>
-                      </CardHeader>
-                      <CardBody>
-                        <Dropzone
-                          onDrop={handleAcceptedFiles}
-                          multiple={false} // Only one image allowed
-                          accept={{
-                            "image/*": [".png", ".jpg", ".jpeg", ".gif"],
-                          }}
-                          maxSize={5242880} // 5MB
-                        >
-                          {({
-                            getRootProps,
-                            getInputProps,
-                            isDragActive,
-                            isDragReject,
-                            rejectedFiles,
-                          }) => {
-                            const safeRejectedFiles = Array.isArray(rejectedFiles)
-                              ? rejectedFiles
-                              : [];
-                            const isFileTooLarge =
-                              safeRejectedFiles.length > 0 &&
-                              safeRejectedFiles[0].size > 5242880;
+                  {/* Image Upload */}
+                  <Card className="mb-3">
+                    <CardHeader>
+                      <h5 className="card-title mb-0">Upload Image</h5>
+                    </CardHeader>
+                    <CardBody>
+                      <Dropzone
+                        onDrop={handleAcceptedFiles}
+                        multiple={false} // Only one image allowed
+                        accept={{
+                          "image/*": [".png", ".jpg", ".jpeg", ".gif"],
+                        }}
+                        maxSize={5242880} // 5MB
+                      >
+                        {({
+                          getRootProps,
+                          getInputProps,
+                          isDragActive,
+                          isDragReject,
+                          rejectedFiles,
+                        }) => {
+                          const safeRejectedFiles = Array.isArray(rejectedFiles)
+                            ? rejectedFiles
+                            : [];
+                          const isFileTooLarge =
+                            safeRejectedFiles.length > 0 &&
+                            safeRejectedFiles[0].size > 5242880;
 
-                            return (
-                              <div className="dropzone dz-clickable" {...getRootProps()}>
-                                {/* Render the input element */}
-                                <input {...getInputProps()} />
+                          return (
+                            <div className="dropzone dz-clickable" {...getRootProps()}>
+                              <input {...getInputProps()} />
 
-                                <div className="dz-message needsclick">
-                                  <div className="mb-3 mt-5">
-                                    <i className="display-4 text-muted ri-upload-cloud-2-fill" />
-                                  </div>
-                                  <h5>Drop an image here or click to upload.</h5>
-                                  {isDragActive && !isDragReject && (
-                                    <p className="mt-2 text-primary">
-                                      Drop the files here...
-                                    </p>
-                                  )}
-                                  {isDragReject && (
-                                    <p className="mt-2 text-danger">
-                                      Unsupported file type.
-                                    </p>
-                                  )}
-                                  {isFileTooLarge && (
-                                    <p className="mt-2 text-danger">File is too large.</p>
-                                  )}
+                              <div className="dz-message needsclick">
+                                <div className="mb-3 mt-5">
+                                  <i className="display-4 text-muted ri-upload-cloud-2-fill" />
                                 </div>
+                                <h5>Drop an image here or click to upload.</h5>
+                                {isDragActive && !isDragReject && (
+                                  <p className="mt-2 text-primary">
+                                    Drop the files here...
+                                  </p>
+                                )}
+                                {isDragReject && (
+                                  <p className="mt-2 text-danger">
+                                    Unsupported file type.
+                                  </p>
+                                )}
+                                {isFileTooLarge && (
+                                  <p className="mt-2 text-danger">File is too large.</p>
+                                )}
                               </div>
-                            );
-                          }}
-                        </Dropzone>
-
-                        {/* Image Preview */}
-                        {selectedFile && (
-                          <div className="mt-3">
-                            <div className="position-relative d-inline-block">
-                              <img
-                                src={selectedFile.preview}
-                                alt="Selected"
-                                className="img-thumbnail"
-                                style={{
-                                  width: "200px",
-                                  height: "200px",
-                                  objectFit: "cover",
-                                }}
-                              />
-                              <Button
-                                color="danger"
-                                size="sm"
-                                className="position-absolute top-0 end-0"
-                                onClick={removeSelectedFile}
-                              >
-                                <i className="ri-close-line"></i>
-                              </Button>
                             </div>
+                          );
+                        }}
+                      </Dropzone>
+
+                      {/* Image Preview */}
+                      {selectedFile && (
+                        <div className="mt-3">
+                          <div className="position-relative d-inline-block">
+                            <img
+                              src={selectedFile.preview}
+                              alt="Selected"
+                              className="img-thumbnail"
+                              style={{
+                                width: "200px",
+                                height: "200px",
+                                objectFit: "cover",
+                              }}
+                            />
+                            <Button
+                              color="danger"
+                              size="sm"
+                              className="position-absolute top-0 end-0"
+                              onClick={removeSelectedFile}
+                            >
+                              <i className="ri-close-line"></i>
+                            </Button>
                           </div>
-                        )}
-                      </CardBody>
-                    </Card>
-                  )}
+                        </div>
+                      )}
+                    </CardBody>
+                  </Card>
 
                   {/* Submit Button */}
                   <div className="text-end">
@@ -350,7 +345,6 @@ const EcommerceAddCategory = () => {
                     </Button>
                   </div>
                 </Form>
-                {/* End of Form */}
               </CardBody>
             </Card>
           </Col>

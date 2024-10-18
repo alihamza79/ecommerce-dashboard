@@ -1,5 +1,3 @@
-// src/pages/Ecommerce/EcommerceEditCategory.js
-
 import React, { useState, useEffect } from "react";
 import {
   Button,
@@ -79,8 +77,9 @@ const EcommerceEditCategory = () => {
     const fetchCategories = async () => {
       try {
         const response = await db.Categories.list();
+        // Filter categories to only include those without a parentCategoryId (i.e., top-level categories)
         const categoryOptions = response.documents
-          .filter((cat) => cat.$id !== categoryId) // Exclude the current category
+          .filter((cat) => cat.$id !== categoryId && cat.parentCategoryId === null) // Exclude the current category and only top-level
           .map((cat) => ({
             label: cat.name,
             value: cat.$id,
@@ -163,7 +162,7 @@ const EcommerceEditCategory = () => {
         // Prepare the updated category data
         const updatedCategory = {
           name: values.name,
-          description: categoryType === "category" ? values.description : "",
+          description: values.description,
           image: imageId ? [imageId] : [],
           parentCategoryId: categoryType === "subcategory" ? parentCategoryId : null,
         };
@@ -324,135 +323,132 @@ const EcommerceEditCategory = () => {
                   )}
 
                   {/* Category Description Field */}
-                  {categoryType === "category" && (
-                    <div className="mb-3">
-                      <Label className="form-label" htmlFor="category-description">
-                        Description
-                      </Label>
-                      <Input
-                        type="textarea"
-                        className="form-control"
-                        id="category-description"
-                        name="description"
-                        placeholder="Enter category description"
-                        value={formik.values.description}
-                        onChange={formik.handleChange}
-                        onBlur={formik.handleBlur}
-                        invalid={
-                          formik.touched.description && formik.errors.description
-                            ? true
-                            : false
-                        }
-                      />
-                      {formik.touched.description && formik.errors.description ? (
-                        <FormFeedback>{formik.errors.description}</FormFeedback>
-                      ) : null}
-                    </div>
-                  )}
+                  <div className="mb-3">
+                    <Label className="form-label" htmlFor="category-description">
+                      Description
+                    </Label>
+                    <Input
+                      type="textarea"
+                      className="form-control"
+                      id="category-description"
+                      name="description"
+                      placeholder="Enter category description"
+                      value={formik.values.description}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      invalid={
+                        formik.touched.description && formik.errors.description
+                          ? true
+                          : false
+                      }
+                    />
+                    {formik.touched.description && formik.errors.description ? (
+                      <FormFeedback>{formik.errors.description}</FormFeedback>
+                    ) : null}
+                  </div>
 
                   {/* Category Image Upload */}
-                  {categoryType === "category" && (
-                    <Card className="mb-3">
-                      <CardHeader>
-                        <h5 className="card-title mb-0">Category Image</h5>
-                      </CardHeader>
-                      <CardBody>
-                        {/* Display Existing Image */}
-                        {existingImage ? (
-                          <div className="mb-3">
-                            <div className="position-relative d-inline-block">
-                              <img
-                                src={getImageURL(existingImage)}
-                                alt="Existing"
-                                className="img-thumbnail"
-                                style={{
-                                  width: "200px",
-                                  height: "200px",
-                                  objectFit: "cover",
-                                }}
-                              />
-                              <Button
-                                color="danger"
-                                size="sm"
-                                className="position-absolute top-0 end-0"
-                                onClick={removeExistingImage}
-                              >
-                                <i className="ri-close-line"></i>
-                              </Button>
-                            </div>
+                  <Card className="mb-3">
+                    <CardHeader>
+                      <h5 className="card-title mb-0">Category Image</h5>
+                    </CardHeader>
+                    <CardBody>
+                      {/* Display Existing Image */}
+                      {existingImage ? (
+                        <div className="mb-3">
+                          <div className="position-relative d-inline-block">
+                            <img
+                              src={getImageURL(existingImage)}
+                              alt="Existing"
+                              className="img-thumbnail"
+                              style={{
+                                width: "200px",
+                                height: "200px",
+                                objectFit: "cover",
+                              }}
+                            />
+                            <Button
+                              color="danger"
+                              size="sm"
+                              className="position-absolute top-0 end-0"
+                              onClick={removeExistingImage}
+                            >
+                              <i className="ri-close-line"></i>
+                            </Button>
                           </div>
-                        ) : (
-                          <div className="mb-3">
-                            <Label>No existing image.</Label>
-                          </div>
-                        )}
+                        </div>
+                      ) : (
+                        <div className="mb-3">
+                          <Label>No existing image.</Label>
+                        </div>
+                      )}
 
-                        {/* Upload New Image */}
-                        <Dropzone
-                          onDrop={handleAcceptedFiles}
-                          multiple={false} // Only one image allowed
-                          accept={{
-                            "image/*": [".png", ".jpg", ".jpeg", ".gif"],
-                          }}
-                          maxSize={5242880} // 5MB
-                        >
-                          {({
-                            getRootProps,
-                            getInputProps,
-                            isDragActive,
-                            isDragReject,
-                            rejectedFiles,
-                          }) => {
-                            const safeRejectedFiles = Array.isArray(rejectedFiles)
-                              ? rejectedFiles
-                              : [];
-                            const isFileTooLarge =
-                              safeRejectedFiles.length > 0 &&
-                              safeRejectedFiles[0].size > 5242880;
+                      {/* Upload New Image */}
+                      <Dropzone
+                        onDrop={handleAcceptedFiles}
+                        multiple={false} // Only one image allowed
+                        accept={{
+                          "image/*": [".png", ".jpg", ".jpeg", ".gif"],
+                        }}
+                        maxSize={5242880} // 5MB
+                      >
+                        {({
+                          getRootProps,
+                          getInputProps,
+                          isDragActive,
+                          isDragReject,
+                          rejectedFiles,
+                        }) => {
+                          const safeRejectedFiles = Array.isArray(rejectedFiles)
+                            ? rejectedFiles
+                            : [];
+                          const isFileTooLarge =
+                            safeRejectedFiles.length > 0 &&
+                            safeRejectedFiles[0].size > 5242880;
 
-                            return (
-                              <div className="dropzone dz-clickable" {...getRootProps()}>
-                                {/* Render the input element */}
-                                <input {...getInputProps()} />
+                          return (
+                            <div className="dropzone dz-clickable" {...getRootProps()}>
+                              {/* Render the input element */}
+                              <input {...getInputProps()} />
 
-                                <div className="dz-message needsclick">
-                                  <div className="mb-3 mt-5">
-                                    <i className="display-4 text-muted ri-upload-cloud-2-fill" />
-                                  </div>
-                                  <h5>Drop a new image here or click to upload.</h5>
-                                  {isDragActive && !isDragReject && (
-                                    <p className="mt-2 text-primary">
-                                      Drop the files here...
-                                    </p>
-                                  )}
-                                  {isDragReject && (
-                                    <p className="mt-2 text-danger">
-                                      Unsupported file type.
-                                    </p>
-                                  )}
-                                  {isFileTooLarge && (
-                                    <p className="mt-2 text-danger">File is too large.</p>
-                                  )}
+                              <div className="dz-message needsclick">
+                                <div className="mb-3 mt-5">
+                                  <i className="display-4 text-muted ri-upload-cloud-2-fill" />
                                 </div>
+                                <h5>Drop a new image here or click to upload.</h5>
+                                {isDragActive && !isDragReject && (
+                                  <p className="mt-2 text-primary">
+                                    Drop the files here...
+                                  </p>
+                                )}
+                                {isDragReject && (
+                                  <p className="mt-2 text-danger">
+                                    Unsupported file type.
+                                  </p>
+                                )}
+                                {isFileTooLarge && (
+                                  <p className="mt-2 text-danger">File is too large.</p>
+                                )}
                               </div>
-                            );
-                          }}
-                        </Dropzone>
+                            </div>
+                          );
+                        }}
+                      </Dropzone>
 
-                        {/* New Image Preview */}
-                        {selectedFile && (
-                          <div className="mt-3">
-                            <div className="position-relative d-inline-block">
-                              <img
-                                src={selectedFile.preview}
-                                alt="Selected"
-                                className="img-thumbnail"
-                                style={{
-                                  width: "200px",
-                                  height: "200px",
-                                  objectFit: "cover",
-                                }}
-                              />
+                      {/* New Image Preview */}
+                      {selectedFile && (
+                        <div className="mt-3">
+                          <div className="position-relative d-inline-block">
+                            <img
+                              src={selectedFile.preview}
+                              alt="Selected"
+                              className="img-thumbnail"
+                              style={{
+                                width: "200px",
+                                height: "200px",
+                                objectFit: "cover",
+                              }}
+                            />
                               <Button
                                 color="danger"
                                 size="sm"
@@ -461,12 +457,11 @@ const EcommerceEditCategory = () => {
                               >
                                 <i className="ri-close-line"></i>
                               </Button>
-                            </div>
                           </div>
-                        )}
-                      </CardBody>
-                    </Card>
-                  )}
+                        </div>
+                      )}
+                    </CardBody>
+                  </Card>
 
                   {/* Submit Button */}
                   <div className="text-end">

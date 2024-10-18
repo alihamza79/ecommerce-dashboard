@@ -25,6 +25,7 @@ import db from "../../../appwrite/Services/dbServices";
 import storageServices from "../../../appwrite/Services/storageServices";
 import { CKEditor } from "@ckeditor/ckeditor5-react";
 import ClassicEditor from "@ckeditor/ckeditor5-build-classic";
+import { Query } from "appwrite"; // Import Query for pagination
 
 const EcommerceAddProduct = () => {
   const dispatch = useDispatch();
@@ -33,28 +34,42 @@ const EcommerceAddProduct = () => {
   const [categories, setCategories] = useState([]);
   const [fetchError, setFetchError] = useState("");
   const [submitError, setSubmitError] = useState("");
+  const limit = 100; // Adjust the limit as needed
+
+  // Function to fetch all categories with pagination
+  const fetchAllCategories = async () => {
+    let allCategories = [];
+    let offset = 0;
+    let fetchedCategories = [];
+
+    try {
+      do {
+        // Fetch categories with pagination using Query.limit() and Query.offset()
+        const response = await db.Categories.list([
+          Query.limit(limit),
+          Query.offset(offset),
+        ]);
+        fetchedCategories = response.documents;
+        allCategories = [...allCategories, ...fetchedCategories];
+        offset += limit; // Increment the offset for the next batch
+      } while (fetchedCategories.length === limit); // Continue until we get less than the limit
+
+      // Map categories to the format required by react-select
+      const categoryOptions = allCategories.map((cat) => ({
+        label: cat.name,
+        value: cat.$id,
+      }));
+      setCategories(categoryOptions);
+    } catch (error) {
+      console.error("Failed to fetch categories:", error);
+      setFetchError("Failed to fetch categories. Please try again later.");
+      setCategories([]);
+    }
+  };
 
   // Fetch categories from Appwrite
   useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const response = await db.Categories.list();
-        console.log("Fetched Categories Response:", response);
-        const categoryOptions = Array.isArray(response.documents)
-          ? response.documents.map((cat) => ({
-              label: cat.name,
-              value: cat.$id,
-            }))
-          : [];
-        setCategories(categoryOptions);
-      } catch (error) {
-        console.error("Failed to fetch categories:", error);
-        setFetchError("Failed to fetch categories. Please try again later.");
-        setCategories([]);
-      }
-    };
-
-    fetchCategories();
+    fetchAllCategories();
   }, []);
 
   // Handle file uploads (for preview, store the selected files in state)
@@ -116,24 +131,23 @@ const EcommerceAddProduct = () => {
         .required("Please select a product type"),
       isOnSale: Yup.boolean().notRequired(),
       discountPrice: Yup.number()
-  .transform((value, originalValue) =>
-    originalValue === "" ? null : value
-  )
-  .nullable()
-  .when("isOnSale", {
-    is: true,
-    then: () =>
-      Yup.number()
-        .typeError("Discount Price must be a number")
-        .positive("Discount Price must be a positive number")
-        .required("Please enter a discount price")
-        .max(
-          Yup.ref("price"),
-          "Discount Price must be less than the original price"
-        ),
-    otherwise: () => Yup.number().notRequired(),
-  }),
-
+        .transform((value, originalValue) =>
+          originalValue === "" ? null : value
+        )
+        .nullable()
+        .when("isOnSale", {
+          is: true,
+          then: () =>
+            Yup.number()
+              .typeError("Discount Price must be a number")
+              .positive("Discount Price must be a positive number")
+              .required("Please enter a discount price")
+              .max(
+                Yup.ref("price"),
+                "Discount Price must be less than the original price"
+              ),
+          otherwise: () => Yup.number().notRequired(),
+        }),
       tags: Yup.string(),
       description: Yup.string(),
     }),
@@ -312,51 +326,50 @@ const EcommerceAddProduct = () => {
                       <div className="mb-4">
                         <h5 className="fs-14 mb-1">Product Images</h5>
                         <Dropzone
-  onDrop={handleAcceptedFiles}
-  accept={{
-    "image/*": [".jpeg", ".png", ".gif", ".bmp", ".webp"],
-  }}
-  maxSize={5242880} // 5MB
->
-  {({
-    getRootProps,
-    getInputProps,
-    isDragActive,
-    isDragReject,
-    rejectedFiles,
-  }) => {
-    const safeRejectedFiles = Array.isArray(rejectedFiles)
-      ? rejectedFiles
-      : [];
-    const isFileTooLarge =
-      safeRejectedFiles.length > 0 &&
-      safeRejectedFiles[0].size > 5242880;
+                          onDrop={handleAcceptedFiles}
+                          accept={{
+                            "image/*": [".jpeg", ".png", ".gif", ".bmp", ".webp"],
+                          }}
+                          maxSize={5242880} // 5MB
+                        >
+                          {({
+                            getRootProps,
+                            getInputProps,
+                            isDragActive,
+                            isDragReject,
+                            rejectedFiles,
+                          }) => {
+                            const safeRejectedFiles = Array.isArray(rejectedFiles)
+                              ? rejectedFiles
+                              : [];
+                            const isFileTooLarge =
+                              safeRejectedFiles.length > 0 &&
+                              safeRejectedFiles[0].size > 5242880;
 
-    return (
-      <div className="dropzone dz-clickable" {...getRootProps()}>
-        {/* Render the input element */}
-        <input {...getInputProps()} />
-        
-        <div className="dz-message needsclick">
-          <div className="mb-3 mt-5">
-            <i className="display-4 text-muted ri-upload-cloud-2-fill" />
-          </div>
-          <h5>Drop files here or click to upload.</h5>
-          {isDragActive && !isDragReject && (
-            <p className="mt-2 text-primary">Drop the files here...</p>
-          )}
-          {isDragReject && (
-            <p className="mt-2 text-danger">Unsupported file type.</p>
-          )}
-          {isFileTooLarge && (
-            <p className="mt-2 text-danger">File is too large.</p>
-          )}
-        </div>
-      </div>
-    );
-  }}
-</Dropzone>
+                            return (
+                              <div className="dropzone dz-clickable" {...getRootProps()}>
+                                {/* Render the input element */}
+                                <input {...getInputProps()} />
 
+                                <div className="dz-message needsclick">
+                                  <div className="mb-3 mt-5">
+                                    <i className="display-4 text-muted ri-upload-cloud-2-fill" />
+                                  </div>
+                                  <h5>Drop files here or click to upload.</h5>
+                                  {isDragActive && !isDragReject && (
+                                    <p className="mt-2 text-primary">Drop the files here...</p>
+                                  )}
+                                  {isDragReject && (
+                                    <p className="mt-2 text-danger">Unsupported file type.</p>
+                                  )}
+                                  {isFileTooLarge && (
+                                    <p className="mt-2 text-danger">File is too large.</p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          }}
+                        </Dropzone>
 
                         {/* Image Preview */}
                         <div className="list-unstyled mb-0" id="file-previews">

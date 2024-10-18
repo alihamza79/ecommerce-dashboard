@@ -45,55 +45,84 @@ const EcommerceProducts = () => {
   const [productToDelete, setProductToDelete] = useState(null);
   const [dele, setDele] = useState(0);
 
-  // Fetch products and categories using useQuery
-  const { data: productsData, isLoading: isProductsLoading } = useQuery(
-    "products",
-    async () => {
-      let products = [];
-      let offset = 0;
-      const limit = 100; // Maximum limit per request
+  // Function to fetch all products with pagination
+  const fetchAllProducts = async () => {
+    let products = [];
+    let offset = 0;
+    const limit = 100; // Maximum limit per request
 
-      // Fetch products in batches until all are fetched
-      while (true) {
-        const productResponse = await db.Products.list([
-          Query.limit(limit),
-          Query.offset(offset),
-        ]);
+    // Fetch products in batches until all are fetched
+    while (true) {
+      const productResponse = await db.Products.list([
+        Query.limit(limit),
+        Query.offset(offset),
+      ]);
 
-        // Add the fetched products to the array
-        products = products.concat(productResponse.documents);
+      // Add the fetched products to the array
+      products = products.concat(productResponse.documents);
 
-        // If the number of fetched products is less than the limit, we've fetched all products
-        if (productResponse.documents.length < limit) {
-          break;
-        }
-
-        // Increment the offset for the next batch
-        offset += limit;
+      // If the number of fetched products is less than the limit, we've fetched all products
+      if (productResponse.documents.length < limit) {
+        break;
       }
 
-      // Map and parse the product data
-      products = products.map((product) => ({
-        ...product,
-        price: parseFloat(product.price),
-        isOnSale: Boolean(product.isOnSale),
-        isWholesaleProduct: Boolean(product.isWholesaleProduct),
-      }));
+      // Increment the offset for the next batch
+      offset += limit;
+    }
 
-      return products;
-    },
+    // Map and parse the product data
+    products = products.map((product) => ({
+      ...product,
+      price: parseFloat(product.price),
+      isOnSale: Boolean(product.isOnSale),
+      isWholesaleProduct: Boolean(product.isWholesaleProduct),
+    }));
+
+    return products;
+  };
+
+  // Function to fetch all categories with pagination
+  const fetchAllCategories = async () => {
+    let allCategories = [];
+    let offset = 0;
+    const limit = 100; // Adjust the limit as needed
+
+    // Fetch categories in batches until all are fetched
+    while (true) {
+      const categoryResponse = await db.Categories.list([
+        Query.limit(limit),
+        Query.offset(offset),
+      ]);
+
+      // Add the fetched categories to the array
+      allCategories = allCategories.concat(categoryResponse.documents);
+
+      // If the number of fetched categories is less than the limit, we've fetched all categories
+      if (categoryResponse.documents.length < limit) {
+        break;
+      }
+
+      // Increment the offset for the next batch
+      offset += limit;
+    }
+
+    return allCategories;
+  };
+
+  // Fetch products using useQuery
+  const { data: productsData, isLoading: isProductsLoading } = useQuery(
+    "products",
+    fetchAllProducts,
     {
       staleTime: Infinity, // Data is considered fresh indefinitely
       cacheTime: Infinity, // Cache data indefinitely
     }
   );
 
+  // Fetch categories using useQuery with pagination
   const { data: categoriesData, isLoading: isCategoriesLoading } = useQuery(
     "categories",
-    async () => {
-      const categoryResponse = await db.Categories.list();
-      return categoryResponse.documents;
-    },
+    fetchAllCategories,
     {
       staleTime: Infinity,
       cacheTime: Infinity,
@@ -122,8 +151,12 @@ const EcommerceProducts = () => {
       setPriceSliderRange({ min: minPrice, max: maxPrice });
 
       // Initialize minCost and maxCost inputs
-      document.getElementById("minCost").value = minPrice;
-      document.getElementById("maxCost").value = maxPrice;
+      const minCostInput = document.getElementById("minCost");
+      const maxCostInput = document.getElementById("maxCost");
+      if (minCostInput && maxCostInput) {
+        minCostInput.value = minPrice;
+        maxCostInput.value = maxPrice;
+      }
     }
   }, [productsData]);
 
@@ -187,8 +220,12 @@ const EcommerceProducts = () => {
     const minCost = parseFloat(values[0]);
     const maxCost = parseFloat(values[1]);
 
-    document.getElementById("minCost").value = minCost;
-    document.getElementById("maxCost").value = maxCost;
+    const minCostInput = document.getElementById("minCost");
+    const maxCostInput = document.getElementById("maxCost");
+    if (minCostInput && maxCostInput) {
+      minCostInput.value = minCost;
+      maxCostInput.value = maxCost;
+    }
 
     setPriceRange({ min: minCost, max: maxCost });
   };
@@ -443,8 +480,12 @@ const EcommerceProducts = () => {
                         });
                         setIsWholesaleFilter(false);
                         setIsOnSaleFilter(false);
-                        document.getElementById("minCost").value = priceSliderRange.min;
-                        document.getElementById("maxCost").value = priceSliderRange.max;
+                        const minCostInput = document.getElementById("minCost");
+                        const maxCostInput = document.getElementById("maxCost");
+                        if (minCostInput && maxCostInput) {
+                          minCostInput.value = priceSliderRange.min;
+                          maxCostInput.value = priceSliderRange.max;
+                        }
                       }}
                     >
                       Clear All
@@ -613,7 +654,7 @@ const EcommerceProducts = () => {
                   </Row>
                 </div>
                 <div className="card-body pt-0">
-                  {isProductsLoading ? (
+                  {isProductsLoading || isCategoriesLoading ? (
                     <div className="py-4 text-center">
                       <div>
                         <lord-icon

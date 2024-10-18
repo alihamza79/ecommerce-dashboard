@@ -35,13 +35,11 @@ const EcommerceAddCategory = () => {
     const fetchCategories = async () => {
       try {
         const response = await db.Categories.list();
-        // Filter categories to only include those without a parentCategoryId (i.e., top-level categories)
-        const categoryOptions = response.documents
-          .filter((cat) => cat.parentCategoryId === null)
-          .map((cat) => ({
-            label: cat.name,
-            value: cat.$id,
-          }));
+        // Remove the filter to include all categories
+        const categoryOptions = response.documents.map((cat) => ({
+          label: cat.name,
+          value: cat.$id,
+        }));
         setCategories(categoryOptions);
       } catch (error) {
         console.error("Failed to fetch categories:", error);

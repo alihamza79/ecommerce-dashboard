@@ -77,9 +77,9 @@ const EcommerceEditCategory = () => {
     const fetchCategories = async () => {
       try {
         const response = await db.Categories.list();
-        // Filter categories to only include those without a parentCategoryId (i.e., top-level categories)
+        // Remove the filter to include all categories except the current one
         const categoryOptions = response.documents
-          .filter((cat) => cat.$id !== categoryId && cat.parentCategoryId === null) // Exclude the current category and only top-level
+          .filter((cat) => cat.$id !== categoryId) // Exclude the current category
           .map((cat) => ({
             label: cat.name,
             value: cat.$id,
@@ -449,14 +449,14 @@ const EcommerceEditCategory = () => {
                                 objectFit: "cover",
                               }}
                             />
-                              <Button
-                                color="danger"
-                                size="sm"
-                                className="position-absolute top-0 end-0"
-                                onClick={removeSelectedFile}
-                              >
-                                <i className="ri-close-line"></i>
-                              </Button>
+                            <Button
+                              color="danger"
+                              size="sm"
+                              className="position-absolute top-0 end-0"
+                              onClick={removeSelectedFile}
+                            >
+                              <i className="ri-close-line"></i>
+                            </Button>
                           </div>
                         </div>
                       )}

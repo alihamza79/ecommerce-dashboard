@@ -13,6 +13,7 @@ import {
   Col,
   Label,
   Input,
+  Button, // Import Button from reactstrap
 } from "reactstrap";
 import Nouislider from "nouislider-react";
 import "nouislider/distribute/nouislider.css";
@@ -310,6 +311,80 @@ const EcommerceProducts = () => {
       console.error("Failed to delete products:", error);
       toast.error("Failed to delete selected products");
     }
+  };
+
+  // Function to convert JSON to CSV
+  const convertToCSV = (data) => {
+    // Define the headers you want in the CSV
+    const headers = [
+      "$id",
+      "name",
+      "category",
+      "price",
+      "isOnSale",
+      "isWholesaleProduct",
+      "stockQuantity",
+      "images",
+      // Add any other fields you need
+    ];
+
+    // Map the data to include necessary transformations
+    const rows = data.map((product) => ({
+      "$id": product.$id,
+      "name": product.name,
+      "category": getCategoryName(product.categoryId),
+      "price": product.price,
+      "isOnSale": product.isOnSale ? "Yes" : "No",
+      "isWholesaleProduct": product.isWholesaleProduct ? "Yes" : "No",
+      "stockQuantity": product.stockQuantity,
+      "images": product.images && product.images.length > 0
+        ? product.images.map(getImageURL).join("; ")
+        : "No Images",
+      // Add other fields as needed
+    }));
+
+    // Create CSV content
+    const csvContent = [
+      headers.join(","), // Header row
+      ...rows.map((row) =>
+        headers
+          .map((fieldName) => {
+            let field = row[fieldName];
+            if (typeof field === "string") {
+              // Escape double quotes by replacing " with ""
+              field = field.replace(/"/g, '""');
+              // If field contains comma, newline, or double quotes, wrap it in double quotes
+              if (field.search(/("|,|\n)/g) >= 0) {
+                field = `"${field}"`;
+              }
+            }
+            return field;
+          })
+          .join(",")
+      ),
+    ].join("\r\n");
+
+    return csvContent;
+  };
+
+  // Function to trigger CSV download
+  const exportToCSV = () => {
+    if (filteredProductList.length === 0) {
+      toast.warn("No products to export");
+      return;
+    }
+
+    const csv = convertToCSV(filteredProductList);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+
+    // Create a link and trigger download
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "products.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Table columns
@@ -626,11 +701,21 @@ const EcommerceProducts = () => {
             <div>
               <Card>
                 <div className="card-header border-0">
-                  <Row className=" align-items-center">
+                  <Row className="align-items-center">
                     <Col>
                       <h5 className="card-title mb-0">Products</h5>
                     </Col>
-                    <div className="col-auto">
+                    <div className="col-auto d-flex align-items-center">
+                      {/* Export CSV Button */}
+                      <Button
+                        color="primary"
+                        className="me-2"
+                        onClick={exportToCSV}
+                      >
+                        Export CSV
+                      </Button>
+
+                      {/* Bulk Delete Section */}
                       <div id="selection-element" style={{ display: "none" }}>
                         <div className="my-n1 d-flex align-items-center text-muted">
                           Selected{" "}

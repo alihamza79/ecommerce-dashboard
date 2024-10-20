@@ -26,6 +26,8 @@ import storageServices from "../../../appwrite/Services/storageServices";
 import { CKEditor } from "@ckeditor/ckeditor5-react";
 import ClassicEditor from "@ckeditor/ckeditor5-build-classic";
 import { Query } from "appwrite"; // Import Query for pagination
+import { ToastContainer } from "react-toastify";
+import BreadCrumb from "../../../Components/Common/BreadCrumb";
 
 const EcommerceAddProduct = () => {
   const dispatch = useDispatch();
@@ -114,6 +116,10 @@ const EcommerceAddProduct = () => {
       isOnSale: false,
       discountPrice: "",
       productType: "retail",
+      barcode: "", // New field
+      taxExclusivePrice: "", // New field
+      tax: "0", // New field, default to 0%
+      bannerLabel: "", // New field
     },
     validationSchema: Yup.object({
       name: Yup.string().required("Please enter a product title"),
@@ -151,6 +157,17 @@ const EcommerceAddProduct = () => {
           otherwise: () => Yup.number().notRequired(),
         }),
       tags: Yup.string(),
+      barcode: Yup.string().required("Please enter a barcode"),
+      taxExclusivePrice: Yup.number()
+        .typeError("Tax Exclusive Price must be a number")
+        .positive("Tax Exclusive Price must be a positive number")
+        .required("Please enter the Tax Exclusive Price"),
+      tax: Yup.number()
+        .typeError("Tax must be a number")
+        .min(0, "Tax cannot be negative")
+        .max(100, "Tax cannot exceed 100%")
+        .required("Please enter the tax percentage"),
+      bannerLabel: Yup.string(),
     }),
     onSubmit: async (values, { resetForm }) => {
       // Reset errors
@@ -191,11 +208,15 @@ const EcommerceAddProduct = () => {
           console.log("Uploaded Image IDs:", imageIds);
         }
 
+        // Calculate the final price including tax
+        const taxAmount = (parseFloat(values.taxExclusivePrice) * parseFloat(values.tax)) / 100;
+        const finalPrice = parseFloat(values.taxExclusivePrice) + taxAmount;
+
         // Prepare the product data to save
         const newProduct = {
           name: values.name,
           description: values.description,
-          price: parseFloat(values.price),
+          price: finalPrice,
           stockQuantity: parseInt(values.stockQuantity, 10),
           categoryId: values.categoryId,
           images: imageIds,
@@ -207,6 +228,10 @@ const EcommerceAddProduct = () => {
             ? parseFloat(values.discountPrice)
             : null,
           isWholesaleProduct: values.productType === "wholesale",
+          barcode: values.barcode,
+          taxExclusivePrice: parseFloat(values.taxExclusivePrice),
+          tax: parseFloat(values.tax),
+          bannerLabel: values.bannerLabel,
         };
 
         console.log("New Product Data:", newProduct);
@@ -226,8 +251,9 @@ const EcommerceAddProduct = () => {
 
   return (
     <div className="page-content">
+      <ToastContainer closeButton={false} limit={1} />
       <Container fluid>
-        <h3>Create Product</h3>
+        <BreadCrumb title="Create Product" pageTitle="Ecommerce" />
         <Row>
           <Col lg={8}>
             <Form onSubmit={formik.handleSubmit}>
@@ -298,17 +324,11 @@ const EcommerceAddProduct = () => {
                       value={formik.values.name}
                       onBlur={formik.handleBlur}
                       onChange={formik.handleChange}
-                      invalid={
-                        formik.errors.name && formik.touched.name
-                          ? true
-                          : false
-                      }
+                      invalid={formik.errors.name && formik.touched.name}
                     />
-                    {formik.errors.name && formik.touched.name ? (
-                      <FormFeedback type="invalid">
-                        {formik.errors.name}
-                      </FormFeedback>
-                    ) : null}
+                    {formik.errors.name && formik.touched.name && (
+                      <FormFeedback type="invalid">{formik.errors.name}</FormFeedback>
+                    )}
                   </div>
 
                   {/* Product Description */}
@@ -323,11 +343,32 @@ const EcommerceAddProduct = () => {
                       }}
                       onBlur={() => formik.setFieldTouched("description", true)}
                     />
-                    {formik.errors.description && formik.touched.description ? (
+                    {formik.errors.description && formik.touched.description && (
                       <FormFeedback type="invalid" className="d-block">
                         {formik.errors.description}
                       </FormFeedback>
-                    ) : null}
+                    )}
+                  </div>
+
+                  {/* Barcode */}
+                  <div className="mb-3">
+                    <Label className="form-label" htmlFor="product-barcode-input">
+                      Barcode
+                    </Label>
+                    <Input
+                      type="text"
+                      className="form-control"
+                      id="product-barcode-input"
+                      placeholder="Enter product barcode"
+                      name="barcode"
+                      value={formik.values.barcode}
+                      onBlur={formik.handleBlur}
+                      onChange={formik.handleChange}
+                      invalid={formik.errors.barcode && formik.touched.barcode}
+                    />
+                    {formik.errors.barcode && formik.touched.barcode && (
+                      <FormFeedback type="invalid">{formik.errors.barcode}</FormFeedback>
+                    )}
                   </div>
 
                   {/* Product Gallery */}
@@ -434,7 +475,7 @@ const EcommerceAddProduct = () => {
                 </CardBody>
               </Card>
 
-              {/* General Info (Price and Stock) */}
+              {/* General Info */}
               <Card>
                 <CardHeader>
                   <h5 className="card-title mb-0">General Info</h5>
@@ -460,22 +501,13 @@ const EcommerceAddProduct = () => {
                           value={formik.values.price}
                           onBlur={formik.handleBlur}
                           onChange={formik.handleChange}
-                          invalid={
-                            formik.errors.price && formik.touched.price
-                              ? true
-                              : false
-                          }
+                          invalid={formik.errors.price && formik.touched.price}
                         />
-                        {formik.errors.price && formik.touched.price ? (
-                          <FormFeedback type="invalid">
-                            {formik.errors.price}
-                          </FormFeedback>
-                        ) : null}
+                        {formik.errors.price && formik.touched.price && (
+                          <FormFeedback type="invalid">{formik.errors.price}</FormFeedback>
+                        )}
                       </div>
                     </Col>
-                  </Row>
-
-                  <Row>
                     <Col lg={6}>
                       <div className="mb-3">
                         <Label className="form-label">
@@ -495,18 +527,67 @@ const EcommerceAddProduct = () => {
                           value={formik.values.stockQuantity}
                           onBlur={formik.handleBlur}
                           onChange={formik.handleChange}
-                          invalid={
-                            formik.errors.stockQuantity &&
-                            formik.touched.stockQuantity
-                              ? true
-                              : false
-                          }
+                          invalid={formik.errors.stockQuantity && formik.touched.stockQuantity}
                         />
-                        {formik.errors.stockQuantity && formik.touched.stockQuantity ? (
-                          <FormFeedback type="invalid">
-                            {formik.errors.stockQuantity}
-                          </FormFeedback>
-                        ) : null}
+                        {formik.errors.stockQuantity && formik.touched.stockQuantity && (
+                          <FormFeedback type="invalid">{formik.errors.stockQuantity}</FormFeedback>
+                        )}
+                      </div>
+                    </Col>
+                  </Row>
+                  <Row>
+                    <Col lg={6}>
+                      <div className="mb-3">
+                        <Label className="form-label" htmlFor="product-tax-exclusive-price-input">
+                          Tax Exclusive Price
+                        </Label>
+                        <Input
+                          type="number"
+                          className="form-control"
+                          id="product-tax-exclusive-price-input"
+                          placeholder="Enter tax exclusive price"
+                          name="taxExclusivePrice"
+                          value={formik.values.taxExclusivePrice}
+                          onBlur={formik.handleBlur}
+                          onChange={(e) => {
+                            formik.handleChange(e);
+                            // Update the price field
+                            const taxAmount = (parseFloat(e.target.value) * parseFloat(formik.values.tax)) / 100;
+                            const finalPrice = parseFloat(e.target.value) + taxAmount;
+                            formik.setFieldValue("price", finalPrice.toFixed(2));
+                          }}
+                          invalid={formik.errors.taxExclusivePrice && formik.touched.taxExclusivePrice}
+                        />
+                        {formik.errors.taxExclusivePrice && formik.touched.taxExclusivePrice && (
+                          <FormFeedback type="invalid">{formik.errors.taxExclusivePrice}</FormFeedback>
+                        )}
+                      </div>
+                    </Col>
+                    <Col lg={6}>
+                      <div className="mb-3">
+                        <Label className="form-label" htmlFor="product-tax-input">
+                          Tax (%)
+                        </Label>
+                        <Input
+                          type="number"
+                          className="form-control"
+                          id="product-tax-input"
+                          placeholder="Enter tax percentage"
+                          name="tax"
+                          value={formik.values.tax}
+                          onBlur={formik.handleBlur}
+                          onChange={(e) => {
+                            formik.handleChange(e);
+                            // Update the price field
+                            const taxAmount = (parseFloat(formik.values.taxExclusivePrice) * parseFloat(e.target.value)) / 100;
+                            const finalPrice = parseFloat(formik.values.taxExclusivePrice) + taxAmount;
+                            formik.setFieldValue("price", finalPrice.toFixed(2));
+                          }}
+                          invalid={formik.errors.tax && formik.touched.tax}
+                        />
+                        {formik.errors.tax && formik.touched.tax && (
+                          <FormFeedback type="invalid">{formik.errors.tax}</FormFeedback>
+                        )}
                       </div>
                     </Col>
                   </Row>
@@ -515,13 +596,12 @@ const EcommerceAddProduct = () => {
 
               <div className="text-end mb-3">
                 <Button type="submit" color="success">
-                  Submit
+                  Create Product
                 </Button>
               </div>
             </Form>
           </Col>
 
-          {/* Right Side: Product Categories, Tags, On Sale, and Wholesale Options */}
           <Col lg={4}>
             {/* Display Category Fetch Error */}
             {fetchError && (
@@ -548,11 +628,34 @@ const EcommerceAddProduct = () => {
                   classNamePrefix="select2-selection form-select"
                   placeholder="Select a category"
                 />
-                {formik.errors.categoryId && formik.touched.categoryId ? (
+                {formik.errors.categoryId && formik.touched.categoryId && (
                   <FormFeedback type="invalid" className="d-block">
                     {formik.errors.categoryId}
                   </FormFeedback>
-                ) : null}
+                )}
+              </CardBody>
+            </Card>
+
+            {/* Banner Label */}
+            <Card>
+              <CardHeader>
+                <h5 className="card-title mb-0">Banner Label</h5>
+              </CardHeader>
+              <CardBody>
+                <Input
+                  type="text"
+                  className="form-control"
+                  id="product-banner-label-input"
+                  placeholder="Enter banner label (e.g., 18+)"
+                  name="bannerLabel"
+                  value={formik.values.bannerLabel}
+                  onBlur={formik.handleBlur}
+                  onChange={formik.handleChange}
+                  invalid={formik.errors.bannerLabel && formik.touched.bannerLabel}
+                />
+                {formik.errors.bannerLabel && formik.touched.bannerLabel && (
+                  <FormFeedback type="invalid">{formik.errors.bannerLabel}</FormFeedback>
+                )}
               </CardBody>
             </Card>
 
@@ -570,17 +673,11 @@ const EcommerceAddProduct = () => {
                   value={formik.values.tags}
                   onBlur={formik.handleBlur}
                   onChange={formik.handleChange}
-                  invalid={
-                    formik.errors.tags && formik.touched.tags
-                      ? true
-                      : false
-                  }
+                  invalid={formik.errors.tags && formik.touched.tags}
                 />
-                {formik.errors.tags && formik.touched.tags ? (
-                  <FormFeedback type="invalid">
-                    {formik.errors.tags}
-                  </FormFeedback>
-                ) : null}
+                {formik.errors.tags && formik.touched.tags && (
+                  <FormFeedback type="invalid">{formik.errors.tags}</FormFeedback>
+                )}
               </CardBody>
             </Card>
 
@@ -601,7 +698,7 @@ const EcommerceAddProduct = () => {
                     onChange={(e) => {
                       formik.handleChange(e);
                       if (!e.target.checked) {
-                        formik.setFieldValue("discountPrice", ""); // Reset discountPrice
+                        formik.setFieldValue("discountPrice", "");
                       }
                     }}
                   />
@@ -623,18 +720,11 @@ const EcommerceAddProduct = () => {
                       value={formik.values.discountPrice}
                       onBlur={formik.handleBlur}
                       onChange={formik.handleChange}
-                      invalid={
-                        formik.errors.discountPrice &&
-                        formik.touched.discountPrice
-                          ? true
-                          : false
-                      }
+                      invalid={formik.errors.discountPrice && formik.touched.discountPrice}
                     />
-                    {formik.errors.discountPrice && formik.touched.discountPrice ? (
-                      <FormFeedback type="invalid">
-                        {formik.errors.discountPrice}
-                      </FormFeedback>
-                    ) : null}
+                    {formik.errors.discountPrice && formik.touched.discountPrice && (
+                      <FormFeedback type="invalid">{formik.errors.discountPrice}</FormFeedback>
+                    )}
                   </div>
                 )}
               </CardBody>

@@ -426,47 +426,47 @@ const EcommerceProductDetail = () => {
                                     <td>{getCategoryName(product.categoryId)}</td>
                                   </tr>
                                   <tr>
-                                    <th scope="row">Price</th>
-                                    <td>${product.price.toFixed(2)}</td>
+                                    <th scope="row">Price (Inc. Tax)</th>
+                                    <td>{product.price != null ? `$${product.price.toFixed(2)}` : 'N/A'}</td>
                                   </tr>
-                                  {product.discountPrice && (
-                                    <tr>
-                                      <th scope="row">Discount Price</th>
-                                      <td>${product.discountPrice.toFixed(2)}</td>
-                                    </tr>
-                                  )}
+                                  <tr>
+                                    <th scope="row">Tax Exclusive Price</th>
+                                    <td>{product.taxExclusivePrice != null ? `$${product.taxExclusivePrice.toFixed(2)}` : 'N/A'}</td>
+                                  </tr>
+                                  <tr>
+                                    <th scope="row">Tax (%)</th>
+                                    <td>{product.tax != null ? `${product.tax}%` : 'N/A'}</td>
+                                  </tr>
+                                  <tr>
+                                    <th scope="row">Barcode</th>
+                                    <td>{product.barcode || 'N/A'}</td>
+                                  </tr>
+                                  <tr>
+                                    <th scope="row">Discount Price</th>
+                                    <td>{product.discountPrice != null ? `$${product.discountPrice.toFixed(2)}` : 'N/A'}</td>
+                                  </tr>
                                   <tr>
                                     <th scope="row">Stock Quantity</th>
-                                    <td>{product.stockQuantity}</td>
+                                    <td>{product.stockQuantity != null ? product.stockQuantity : 'N/A'}</td>
                                   </tr>
                                   <tr>
                                     <th scope="row">On Sale</th>
-                                    <td>{product.isOnSale ? "Yes" : "No"}</td>
+                                    <td>{product.isOnSale != null ? (product.isOnSale ? "Yes" : "No") : 'N/A'}</td>
                                   </tr>
                                   <tr>
                                     <th scope="row">Wholesale</th>
                                     <td>
-                                      {product.isWholesaleProduct
-                                        ? "Available"
-                                        : "Not Available"}
+                                      {product.isWholesaleProduct != null
+                                        ? (product.isWholesaleProduct ? "Available" : "Not Available")
+                                        : 'N/A'}
                                     </td>
                                   </tr>
-                                  {/* Removed Wholesale Price Row */}
-                                  {/* {product.isWholesaleProduct &&
-                                    product.wholesalePrice && (
-                                      <tr>
-                                        <th scope="row">Wholesale Price</th>
-                                        <td>${product.wholesalePrice.toFixed(2)}</td>
-                                      </tr>
-                                    )} */}
                                   <tr>
                                     <th scope="row">Tags</th>
                                     <td>
-                                      {product.tags && product.tags.length > 0 ? (
-                                        product.tags.join(", ")
-                                      ) : (
-                                        "No tags available."
-                                      )}
+                                      {product.tags && product.tags.length > 0
+                                        ? product.tags.join(", ")
+                                        : "No tags available."}
                                     </td>
                                   </tr>
                                 </tbody>

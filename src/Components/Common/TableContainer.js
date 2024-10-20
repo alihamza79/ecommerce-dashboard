@@ -59,28 +59,21 @@ const TableContainer = ({
   thClass,
   divClass,
   SearchPlaceholder,
+  globalFilterFn,
 }) => {
   const [globalFilter, setGlobalFilter] = useState("");
-
-  const fuzzyFilter = (row, columnId, value, addMeta) => {
-    const itemRank = rankItem(row.getValue(columnId), value);
-    addMeta({
-      itemRank,
-    });
-    return itemRank.passed;
-  };
 
   const table = useReactTable({
     columns,
     data,
     filterFns: {
-      fuzzy: fuzzyFilter,
+      fuzzy: globalFilterFn,
     },
     state: {
       globalFilter,
     },
     onGlobalFilterChange: setGlobalFilter,
-    globalFilterFn: "fuzzy",
+    globalFilterFn: globalFilterFn ? "fuzzy" : undefined,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),

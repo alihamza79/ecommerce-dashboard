@@ -145,9 +145,13 @@ const EcommerceEditProduct = () => {
       stockQuantity: productData?.stockQuantity || "",
       categoryId: productData?.categoryId || "",
       tags: productData?.tags ? productData.tags.join(",") : "",
-      isOnSale: productData?.isOnSale || false, // Integrated into Formik's state
-      discountPrice: productData?.discountPrice || "", // Added discountPrice
-      productType: productType, // Added productType to initialValues
+      isOnSale: productData?.isOnSale || false,
+      discountPrice: productData?.discountPrice || "",
+      productType: productType,
+      barcode: productData?.barcode || "", // New field
+      taxExclusivePrice: productData?.taxExclusivePrice || "", // New field
+      tax: productData?.tax || "0", // New field
+      bannerLabel: productData?.bannerLabel || "", // New field
     },
     validationSchema: Yup.object({
       name: Yup.string().required("Please enter a product title"),
@@ -186,6 +190,17 @@ const EcommerceEditProduct = () => {
         }),
       tags: Yup.string(),
       // Removed: description: Yup.string(), // Previously optional
+      barcode: Yup.string().required("Please enter a barcode"),
+      taxExclusivePrice: Yup.number()
+        .typeError("Tax Exclusive Price must be a number")
+        .positive("Tax Exclusive Price must be a positive number")
+        .required("Please enter the Tax Exclusive Price"),
+      tax: Yup.number()
+        .typeError("Tax must be a number")
+        .min(0, "Tax cannot be negative")
+        .max(100, "Tax cannot exceed 100%")
+        .required("Please enter the tax percentage"),
+      bannerLabel: Yup.string(),
     }),
     onSubmit: async (values) => {
       // Reset errors
@@ -221,22 +236,30 @@ const EcommerceEditProduct = () => {
           imageIds = [...imageIds, ...successfulUploads];
         }
 
+        // Calculate the final price including tax
+        const taxAmount = (parseFloat(values.taxExclusivePrice) * parseFloat(values.tax)) / 100;
+        const finalPrice = parseFloat(values.taxExclusivePrice) + taxAmount;
+
         // Prepare the updated product data
         const updatedProduct = {
           name: values.name,
           description: values.description,
-          price: parseFloat(values.price),
+          price: finalPrice,
           stockQuantity: parseInt(values.stockQuantity, 10),
           categoryId: values.categoryId,
-          images: imageIds, // Updated image IDs
+          images: imageIds,
           tags: values.tags
             ? values.tags.split(",").map((tag) => tag.trim())
             : [],
-          isOnSale: values.isOnSale, // Use Formik's isOnSale
+          isOnSale: values.isOnSale,
           discountPrice: values.isOnSale
             ? parseFloat(values.discountPrice)
-            : null, // Include discountPrice if on sale
+            : null,
           isWholesaleProduct: values.productType === "wholesale",
+          barcode: values.barcode,
+          taxExclusivePrice: parseFloat(values.taxExclusivePrice),
+          tax: parseFloat(values.tax),
+          bannerLabel: values.bannerLabel,
         };
 
         // Update the product in the Appwrite database
@@ -383,6 +406,27 @@ const EcommerceEditProduct = () => {
                         {formik.errors.description}
                       </FormFeedback>
                     ) : null}
+                  </div>
+
+                  {/* Barcode */}
+                  <div className="mb-3">
+                    <Label className="form-label" htmlFor="product-barcode-input">
+                      Barcode
+                    </Label>
+                    <Input
+                      type="text"
+                      className="form-control"
+                      id="product-barcode-input"
+                      placeholder="Enter product barcode"
+                      name="barcode"
+                      value={formik.values.barcode}
+                      onBlur={formik.handleBlur}
+                      onChange={formik.handleChange}
+                      invalid={formik.errors.barcode && formik.touched.barcode}
+                    />
+                    {formik.errors.barcode && formik.touched.barcode && (
+                      <FormFeedback type="invalid">{formik.errors.barcode}</FormFeedback>
+                    )}
                   </div>
 
                   {/* Product Gallery */}
@@ -534,7 +578,7 @@ const EcommerceEditProduct = () => {
                 </CardBody>
               </Card>
 
-              {/* General Info (Price and Stock) */}
+              {/* General Info */}
               <Card>
                 <CardHeader>
                   <h5 className="card-title mb-0">General Info</h5>
@@ -561,7 +605,9 @@ const EcommerceEditProduct = () => {
                           onBlur={formik.handleBlur}
                           onChange={formik.handleChange}
                           invalid={
-                            formik.errors.price && formik.touched.price ? true : false
+                            formik.errors.price && formik.touched.price
+                              ? true
+                              : false
                           }
                         />
                         {formik.errors.price && formik.touched.price ? (
@@ -571,9 +617,6 @@ const EcommerceEditProduct = () => {
                         ) : null}
                       </div>
                     </Col>
-                  </Row>
-
-                  <Row>
                     <Col lg={6}>
                       <div className="mb-3">
                         <Label className="form-label">
@@ -594,7 +637,8 @@ const EcommerceEditProduct = () => {
                           onBlur={formik.handleBlur}
                           onChange={formik.handleChange}
                           invalid={
-                            formik.errors.stockQuantity && formik.touched.stockQuantity
+                            formik.errors.stockQuantity &&
+                            formik.touched.stockQuantity
                               ? true
                               : false
                           }
@@ -604,6 +648,62 @@ const EcommerceEditProduct = () => {
                             {formik.errors.stockQuantity}
                           </FormFeedback>
                         ) : null}
+                      </div>
+                    </Col>
+                  </Row>
+                  <Row>
+                    <Col lg={6}>
+                      <div className="mb-3">
+                        <Label className="form-label" htmlFor="product-tax-exclusive-price-input">
+                          Tax Exclusive Price
+                        </Label>
+                        <Input
+                          type="number"
+                          className="form-control"
+                          id="product-tax-exclusive-price-input"
+                          placeholder="Enter tax exclusive price"
+                          name="taxExclusivePrice"
+                          value={formik.values.taxExclusivePrice}
+                          onBlur={formik.handleBlur}
+                          onChange={(e) => {
+                            formik.handleChange(e);
+                            // Update the price field
+                            const taxAmount = (parseFloat(e.target.value) * parseFloat(formik.values.tax)) / 100;
+                            const finalPrice = parseFloat(e.target.value) + taxAmount;
+                            formik.setFieldValue("price", finalPrice.toFixed(2));
+                          }}
+                          invalid={formik.errors.taxExclusivePrice && formik.touched.taxExclusivePrice}
+                        />
+                        {formik.errors.taxExclusivePrice && formik.touched.taxExclusivePrice && (
+                          <FormFeedback type="invalid">{formik.errors.taxExclusivePrice}</FormFeedback>
+                        )}
+                      </div>
+                    </Col>
+                    <Col lg={6}>
+                      <div className="mb-3">
+                        <Label className="form-label" htmlFor="product-tax-input">
+                          Tax (%)
+                        </Label>
+                        <Input
+                          type="number"
+                          className="form-control"
+                          id="product-tax-input"
+                          placeholder="Enter tax percentage"
+                          name="tax"
+                          value={formik.values.tax}
+                          onBlur={formik.handleBlur}
+                          onChange={(e) => {
+                            formik.handleChange(e);
+                            // Update the price field
+                            const taxAmount = (parseFloat(formik.values.taxExclusivePrice) * parseFloat(e.target.value)) / 100;
+                            const finalPrice = parseFloat(formik.values.taxExclusivePrice) + taxAmount;
+                            formik.setFieldValue("price", finalPrice.toFixed(2));
+                          }}
+                          invalid={formik.errors.tax && formik.touched.tax}
+                        />
+                        {formik.errors.tax && formik.touched.tax && (
+                          <FormFeedback type="invalid">{formik.errors.tax}</FormFeedback>
+                        )}
                       </div>
                     </Col>
                   </Row>
@@ -649,6 +749,29 @@ const EcommerceEditProduct = () => {
                       {formik.errors.categoryId}
                     </FormFeedback>
                   ) : null}
+                </CardBody>
+              </Card>
+
+              {/* Banner Label */}
+              <Card>
+                <CardHeader>
+                  <h5 className="card-title mb-0">Banner Label</h5>
+                </CardHeader>
+                <CardBody>
+                  <Input
+                    type="text"
+                    className="form-control"
+                    id="product-banner-label-input"
+                    placeholder="Enter banner label (e.g., 18+)"
+                    name="bannerLabel"
+                    value={formik.values.bannerLabel}
+                    onBlur={formik.handleBlur}
+                    onChange={formik.handleChange}
+                    invalid={formik.errors.bannerLabel && formik.touched.bannerLabel}
+                  />
+                  {formik.errors.bannerLabel && formik.touched.bannerLabel && (
+                    <FormFeedback type="invalid">{formik.errors.bannerLabel}</FormFeedback>
+                  )}
                 </CardBody>
               </Card>
 

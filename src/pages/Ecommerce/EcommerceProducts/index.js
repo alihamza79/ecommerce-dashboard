@@ -1,6 +1,6 @@
 // src/pages/Ecommerce/EcommerceProducts.js
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import {
   Container,
   UncontrolledDropdown,
@@ -319,12 +319,19 @@ const EcommerceProducts = () => {
     const headers = [
       "$id",
       "name",
+      "barcode",
       "category",
       "price",
       "isOnSale",
       "isWholesaleProduct",
       "stockQuantity",
       "images",
+      "tags",
+      "description",
+      "discountPrice",
+      "taxExclusivePrice",
+      "tax",
+      "bannerLabel",
       // Add any other fields you need
     ];
 
@@ -332,6 +339,7 @@ const EcommerceProducts = () => {
     const rows = data.map((product) => ({
       "$id": product.$id,
       "name": product.name,
+      "barcode": product.barcode,
       "category": getCategoryName(product.categoryId),
       "price": product.price,
       "isOnSale": product.isOnSale ? "Yes" : "No",
@@ -340,6 +348,14 @@ const EcommerceProducts = () => {
       "images": product.images && product.images.length > 0
         ? product.images.map(getImageURL).join("; ")
         : "No Images",
+      "tags": product.tags && product.tags.length > 0
+        ? product.tags.join("; ")
+        : "No Tags",
+      "description": product.description || "No Description",
+      "discountPrice": product.discountPrice ? `$${product.discountPrice}` : "No Discount",
+      "taxExclusivePrice": product.taxExclusivePrice ? `$${product.taxExclusivePrice}` : "N/A",
+      "tax": product.tax ? `${product.tax}%` : "N/A",
+      "bannerLabel": product.bannerLabel || "N/A",
       // Add other fields as needed
     }));
 
@@ -445,10 +461,22 @@ const EcommerceProducts = () => {
                     {getCategoryName(cell.row.original.categoryId)}
                   </span>
                 </p>
+                <p className="text-muted mb-0">
+                  Barcode:{" "}
+                  <span className="fw-medium">
+                    {cell.row.original.barcode || "N/A"}
+                  </span>
+                </p>
               </div>
             </div>
           </>
         ),
+      },
+      {
+        header: "Barcode",
+        accessorKey: "barcode",
+        enableColumnFilter: false,
+        cell: (cell) => <>{cell.getValue() || "N/A"}</>,
       },
       {
         header: "Type",
@@ -764,8 +792,10 @@ const EcommerceProducts = () => {
                       divClass="table-responsive mb-1"
                       tableClass="mb-0 align-middle table-borderless"
                       theadClass="table-light text-muted"
-                      isProductsFilter={true}
-                      SearchPlaceholder="Search Products..."
+                      isFilter={false} // No additional column filters
+                      SearchPlaceholder="Search by product name or barcode..."
+                      globalFilterFn="fuzzy" // Use 'fuzzy' filter function
+                      filterFields={["name", "barcode"]} // Specify fields to filter on
                     />
                   ) : (
                     <div className="py-4 text-center">
@@ -791,6 +821,18 @@ const EcommerceProducts = () => {
       </Container>
     </div>
   );
+};
+
+// Helper function to get status color
+const getStatusColor = (status) => {
+  const statusColors = {
+    Pending: "warning",
+    Inprogress: "secondary",
+    Pickups: "info",
+    Returns: "primary",
+    Delivered: "success",
+  };
+  return statusColors[status] || "light";
 };
 
 export default EcommerceProducts;

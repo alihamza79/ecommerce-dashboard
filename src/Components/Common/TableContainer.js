@@ -13,8 +13,6 @@ import {
   flexRender,
 } from "@tanstack/react-table";
 
-import { rankItem } from "@tanstack/match-sorter-utils";
-
 // Global Filter Component
 const DebouncedInput = ({
   value: initialValue,
@@ -47,6 +45,26 @@ const DebouncedInput = ({
   );
 };
 
+// Define the 'fuzzy' filter function
+const fuzzyFilter = (row, columnIds, filterValue, filterFields) => {
+  if (!filterValue) return true;
+  const searchTerm = filterValue.toLowerCase();
+
+  // If filterFields is not provided or empty, don't filter
+  if (!filterFields || filterFields.length === 0) {
+    return true;
+  }
+
+  // Iterate over the specified filter fields
+  return filterFields.some((field) => {
+    const value = row.getValue(field);
+    if (typeof value === "string" || typeof value === "number") {
+      return String(value).toLowerCase().includes(searchTerm);
+    }
+    return false;
+  });
+};
+
 const TableContainer = ({
   columns,
   data,
@@ -59,7 +77,8 @@ const TableContainer = ({
   thClass,
   divClass,
   SearchPlaceholder,
-  globalFilterFn,
+  globalFilterFn, // Expected to be a string that maps to a filter function
+  filterFields = [], // Array of field names to search on
 }) => {
   const [globalFilter, setGlobalFilter] = useState("");
 
@@ -67,13 +86,15 @@ const TableContainer = ({
     columns,
     data,
     filterFns: {
-      fuzzy: globalFilterFn,
+      fuzzy: (row, columnIds, filterValue) =>
+        fuzzyFilter(row, columnIds, filterValue, filterFields), // Pass filterFields to fuzzyFilter
+      // Add other filter functions here if needed
     },
     state: {
       globalFilter,
     },
     onGlobalFilterChange: setGlobalFilter,
-    globalFilterFn: globalFilterFn ? "fuzzy" : undefined,
+    globalFilterFn: globalFilterFn, // Should match a key in filterFns
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -92,7 +113,9 @@ const TableContainer = ({
   } = table;
 
   useEffect(() => {
-    customPageSize && setPageSize(customPageSize);
+    if (customPageSize) {
+      setPageSize(customPageSize);
+    }
   }, [customPageSize, setPageSize]);
 
   const pageCount = table.getPageCount();
@@ -188,8 +211,8 @@ const TableContainer = ({
                           header.getContext()
                         )}
                         {{
-                          asc: " ",
-                          desc: " ",
+                          asc: " 🔼",
+                          desc: " 🔽",
                         }[header.column.getIsSorted()] ?? null}
                         {isFilter && header.column.getCanFilter() ? (
                           <div>
@@ -252,7 +275,11 @@ const TableContainer = ({
                 !getCanPreviousPage() ? "page-item disabled" : "page-item"
               }
             >
-              <Link to="#" className="page-link" onClick={() => previousPage()}>
+              <Link
+                to="#"
+                className="page-link"
+                onClick={() => previousPage()}
+              >
                 Previous
               </Link>
             </li>
@@ -286,7 +313,11 @@ const TableContainer = ({
                 !getCanNextPage() ? "page-item disabled" : "page-item"
               }
             >
-              <Link to="#" className="page-link" onClick={() => nextPage()}>
+              <Link
+                to="#"
+                className="page-link"
+                onClick={() => nextPage()}
+              >
                 Next
               </Link>
             </li>

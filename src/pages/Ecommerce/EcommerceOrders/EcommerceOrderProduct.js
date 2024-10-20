@@ -55,7 +55,9 @@ const EcommerceOrderProduct = ({ item }) => {
       <td>${parseFloat(item.price).toFixed(2)}</td>
       <td>{item.quantity}</td>
       {/* Removed "Rating" Column */}
-      <td className="fw-medium text-end">${(item.price * item.quantity).toFixed(2)}</td>
+      <td className="fw-medium text-end">
+        ${ (item.price * item.quantity).toFixed(2) }
+      </td>
     </tr>
   );
 };

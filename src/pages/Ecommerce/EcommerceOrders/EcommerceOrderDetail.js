@@ -49,8 +49,8 @@ const EcommerceOrderDetail = () => {
   // State Management
   const [order, setOrder] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
-  // Removed productsMap
-  const [usersMap, setUsersMap] = useState({}); // Map userId to userName
+  // Removed usersMap
+  // const [usersMap, setUsersMap] = useState({}); // Removed
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -66,6 +66,11 @@ const EcommerceOrderDetail = () => {
   const [isMultiDeleteButton, setIsMultiDeleteButton] = useState(false);
 
   const [isExportCSV, setIsExportCSV] = useState(false);
+
+  const [productsMap, setProductsMap] = useState({}); // Map productId to productName
+
+  // New State for Date Range Filtering (if needed)
+  // const [dateRange, setDateRange] = useState([]); // Not used in detail page
 
   // Define options for order status
   const orderStatusOptions = [
@@ -116,6 +121,28 @@ const EcommerceOrderDetail = () => {
     }
   };
 
+  // Fetch Products
+  const fetchProducts = useCallback(async () => {
+    try {
+      // Fetch Products
+      const productsResponse = await db.Products.list();
+      const fetchedProducts = productsResponse.documents;
+      const productsMapLocal = {};
+      fetchedProducts.forEach((product) => {
+        productsMapLocal[product.productId] = product.productName; // Adjust based on your Products schema
+      });
+      setProductsMap(productsMapLocal);
+    } catch (err) {
+      console.error("Fetch Products Error:", err);
+      const errorMessage =
+        (err.response && err.response.data && err.response.data.message) ||
+        err.message ||
+        "Failed to fetch products.";
+      setError(errorMessage);
+      toast.error(errorMessage, { autoClose: 5000 });
+    }
+  }, []);
+
   // Fetch Order Details
   const fetchOrderDetails = useCallback(async () => {
     setLoading(true);
@@ -131,20 +158,11 @@ const EcommerceOrderDetail = () => {
       ]);
       setOrderItems(orderItemsResponse.documents); // Extract documents array
 
-      // Removed fetching Products
-
-      // Fetch User
-      // Corrected Query to match 'userId' field
-      const usersResponse = await db.Users.list([
-        Query.equal("userId", [orderResponse.userId]),
-      ]);
-
-      if (usersResponse.documents.length > 0) {
-        const user = usersResponse.documents[0];
-        setUsersMap({ [user.userId]: user.name });
-      } else {
-        setUsersMap({}); // User not found
-      }
+      // Removed fetching Users
+      // Since customer details are directly in the Order, no need to fetch Users
+      // Example:
+      // const customerName = `${orderResponse.customerFirstName} ${orderResponse.customerLastName}`;
+      // setUsersMap({ [orderResponse.userId]: customerName });
     } catch (err) {
       console.error("Fetch Order Details Error:", err);
       const errorMessage =
@@ -159,8 +177,9 @@ const EcommerceOrderDetail = () => {
   }, [orderId]);
 
   useEffect(() => {
+    fetchProducts();
     fetchOrderDetails();
-  }, [fetchOrderDetails]);
+  }, [fetchProducts, fetchOrderDetails]);
 
   // Handle Select All Checkbox
   const handleSelectAll = () => {
@@ -280,6 +299,7 @@ const EcommerceOrderDetail = () => {
         accessorKey: "quantity",
         enableColumnFilter: false,
       },
+      // Removed "Rating" Column
       {
         header: "Total Amount",
         accessorKey: "total",
@@ -327,6 +347,32 @@ const EcommerceOrderDetail = () => {
     }
   };
 
+  // Helper function to get status color
+  const getStatusColor = (status) => {
+    const statusColors = {
+      Pending: "warning",
+      Inprogress: "secondary",
+      Pickups: "info",
+      Returns: "primary",
+      Delivered: "success",
+      Cancelled: "danger",
+    };
+    return statusColors[status] || "light";
+  };
+
+  // Helper function to get status icon
+  const getStatusIcon = (status) => {
+    const statusIcons = {
+      Pending: "ri-time-line",
+      Inprogress: "ri-refresh-line",
+      Pickups: "ri-truck-line",
+      Returns: "ri-arrow-left-right-line",
+      Delivered: "ri-check-line",
+      Cancelled: "ri-close-line",
+    };
+    return statusIcons[status] || "ri-question-line";
+  };
+
   if (loading) {
     return <Loader />;
   }
@@ -347,11 +393,21 @@ const EcommerceOrderDetail = () => {
     );
   }
 
-  // Ensure 'orderNumber' exists in your Order schema. If not, consider adding it.
-  const orderNumber = order.orderNumber || `#${order.$id.substring(0, 8).toUpperCase()}`;
+  // Construct Order Number
+  const orderNumber =
+    order.orderNumber || `#${order.$id.substring(0, 8).toUpperCase()}`;
 
-  // Since 'address' is a simple string, no need to parse it as JSON
-  const address = order.address || "N/A";
+  // Construct Address from Order Fields
+  const address = [
+    order.addressLine1,
+    order.addressLine2,
+    order.city,
+    order.region,
+    order.postalCode,
+    order.country,
+  ]
+    .filter((line) => line) // Remove undefined or empty fields
+    .join(", ") || "N/A";
 
   return (
     <div className="page-content">
@@ -365,7 +421,9 @@ const EcommerceOrderDetail = () => {
             <Card>
               <CardHeader>
                 <div className="d-flex align-items-center">
-                  <h5 className="card-title flex-grow-1 mb-0">Order {orderNumber}</h5>
+                  <h5 className="card-title flex-grow-1 mb-0">
+                    Order {orderNumber}
+                  </h5>
                   <div className="flex-shrink-0">
                     <Button
                       color="success"
@@ -401,10 +459,7 @@ const EcommerceOrderDetail = () => {
                     </thead>
                     <tbody>
                       {orderItems.map((item, key) => (
-                        <EcommerceOrderProduct
-                          item={item}
-                          key={key}
-                        />
+                        <EcommerceOrderProduct item={item} key={key} />
                       ))}
                       <tr className="border-top border-top-dashed">
                         <td colSpan="3"></td>
@@ -462,7 +517,11 @@ const EcommerceOrderDetail = () => {
                         >
                           <div className="d-flex align-items-center">
                             <div className="flex-shrink-0 avatar-xs">
-                              <div className={`avatar-title rounded-circle bg-${getStatusColor(order.orderStatus)}`}>
+                              <div
+                                className={`avatar-title rounded-circle bg-${getStatusColor(
+                                  order.orderStatus
+                                )}`}
+                              >
                                 <i className={getStatusIcon(order.orderStatus)}></i>
                               </div>
                             </div>
@@ -485,7 +544,9 @@ const EcommerceOrderDetail = () => {
                         <div className="accordion-body ms-2 ps-5 pt-0">
                           <h6 className="mb-1">
                             {order.orderStatus} on{" "}
-                            {moment(order.updatedAt).format("ddd, DD MMM YYYY - hh:mm A")}
+                            {moment(order.updatedAt).format(
+                              "ddd, DD MMM YYYY - hh:mm A"
+                            )}
                           </h6>
                           {/* Add more details if needed */}
                         </div>
@@ -516,15 +577,18 @@ const EcommerceOrderDetail = () => {
               <CardBody>
                 <ul className="list-unstyled mb-0 vstack gap-3">
                   <li>
-                    <h6 className="fs-14 mb-1">{usersMap[order.userId] || "N/A"}</h6>
+                    <h6 className="fs-14 mb-1">
+                      {`${order.customerFirstName} ${order.customerLastName}`.trim() ||
+                        "N/A"}
+                    </h6>
                   </li>
                   <li>
                     <i className="ri-mail-line me-2 align-middle text-muted fs-16"></i>
-                    {order.email}
+                    {order.email || "N/A"}
                   </li>
                   <li>
                     <i className="ri-phone-line me-2 align-middle text-muted fs-16"></i>
-                    {order.phoneNumber}
+                    {order.phoneNumber || "N/A"}
                   </li>
                 </ul>
               </CardBody>
@@ -561,7 +625,7 @@ const EcommerceOrderDetail = () => {
                     <p className="text-muted mb-0">Payment Method:</p>
                   </div>
                   <div className="flex-grow-1 ms-2">
-                    <h6 className="mb-0">{order.paymentMethod}</h6>
+                    <h6 className="mb-0">{order.paymentMethod || "N/A"}</h6>
                   </div>
                 </div>
               </CardBody>
@@ -574,7 +638,7 @@ const EcommerceOrderDetail = () => {
           show={isExportCSV}
           onCloseClick={() => setIsExportCSV(false)}
           data={exportCSVData}
-          filename={`Order_${order.orderNumber || order.$id}.csv`} // Use orderNumber if available
+          filename={`Order_${orderNumber}.csv`} // Use orderNumber if available
         />
 
         {/* Delete Single Order Modal */}
@@ -616,7 +680,9 @@ const EcommerceOrderDetail = () => {
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
                     value={formik.values.status}
-                    invalid={formik.touched.status && Boolean(formik.errors.status)}
+                    invalid={
+                      formik.touched.status && Boolean(formik.errors.status)
+                    }
                   >
                     <option value="">Select Delivery Status</option>
                     {orderStatusOptions.map((option, idx) => (
@@ -659,30 +725,5 @@ const EcommerceOrderDetail = () => {
   );
 };
 
-// Helper function to get status color
-const getStatusColor = (status) => {
-  const statusColors = {
-    Pending: "warning",
-    Inprogress: "secondary",
-    Pickups: "info",
-    Returns: "primary",
-    Delivered: "success",
-    Cancelled: "danger",
-  };
-  return statusColors[status] || "light";
-};
-
-// Helper function to get status icon
-const getStatusIcon = (status) => {
-  const statusIcons = {
-    Pending: "ri-time-line",
-    Inprogress: "ri-refresh-line",
-    Pickups: "ri-truck-line",
-    Returns: "ri-arrow-left-right-line",
-    Delivered: "ri-check-line",
-    Cancelled: "ri-close-line",
-  };
-  return statusIcons[status] || "ri-question-line";
-};
-
 export default EcommerceOrderDetail;
+

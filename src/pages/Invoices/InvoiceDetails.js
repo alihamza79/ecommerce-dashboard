@@ -1,6 +1,6 @@
 // src/components/InvoiceDetails.js
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   CardBody,
   Row,
@@ -27,41 +27,62 @@ const InvoiceDetails = () => {
   const { orderId } = useParams(); // Get orderId from route parameters
   const [order, setOrder] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
-  const [user, setUser] = useState(null); // To store user details
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Fetch order details
-  const fetchOrderDetails = useCallback(async () => {
+  const [productsMap, setProductsMap] = useState({}); // Map productId to productName
+
+  // Fetch Products
+  const fetchProducts = useCallback(async () => {
     try {
-      setLoading(true);
+      // Fetch Products
+      const productsResponse = await db.Products.list();
+      const fetchedProducts = productsResponse.documents;
+      const productsMapLocal = {};
+      fetchedProducts.forEach((product) => {
+        productsMapLocal[product.productId] = product.productName; // Adjust based on your Products schema
+      });
+      setProductsMap(productsMapLocal);
+    } catch (err) {
+      console.error("Fetch Products Error:", err);
+      const errorMessage =
+        (err.response && err.response.data && err.response.data.message) ||
+        err.message ||
+        "Failed to fetch products.";
+      setError(errorMessage);
+    }
+  }, []);
 
+  // Fetch Order Details
+  const fetchOrderDetails = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
       // Fetch order data
       const orderData = await db.Orders.get(orderId);
       setOrder(orderData);
 
       // Fetch order items
       const orderItemsResponse = await db.OrderItems.list([
-        Query.equal("orderId", orderId),
+        Query.equal("orderId", [orderId]),
       ]);
       setOrderItems(orderItemsResponse.documents);
-
-      // Fetch user data
-      const usersResponse = await db.Users.list([
-        Query.equal("userId", orderData.userId),
-      ]);
-      if (usersResponse.documents.length > 0) {
-        setUser(usersResponse.documents[0]);
-      }
-    } catch (error) {
-      console.error("Error fetching order details:", error);
+    } catch (err) {
+      console.error("Fetch Order Details Error:", err);
+      const errorMessage =
+        (err.response && err.response.data && err.response.data.message) ||
+        err.message ||
+        "Failed to fetch order details.";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
   }, [orderId]);
 
   useEffect(() => {
+    fetchProducts();
     fetchOrderDetails();
-  }, [fetchOrderDetails]);
+  }, [fetchProducts, fetchOrderDetails]);
 
   // Print the Invoice
   const printInvoice = () => {
@@ -78,8 +99,7 @@ const InvoiceDetails = () => {
 
         // Calculate width and height to fit the page
         const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight =
-          (canvas.height * pdfWidth) / canvas.width;
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
         pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
         pdf.save(`Invoice_${order.$id.substring(0, 8)}.pdf`);
@@ -95,8 +115,20 @@ const InvoiceDetails = () => {
     return <div>Loading...</div>;
   }
 
+  if (error) {
+    return (
+      <div className="alert alert-danger mt-3" role="alert">
+        {error}
+      </div>
+    );
+  }
+
   if (!order) {
-    return <div>Order not found.</div>;
+    return (
+      <div className="alert alert-info mt-3" role="alert">
+        Order not found.
+      </div>
+    );
   }
 
   // Calculate totals
@@ -106,6 +138,27 @@ const InvoiceDetails = () => {
   );
   const shippingCharge = 0; // Adjust shipping charge if needed
   const totalAmount = subTotal + shippingCharge;
+
+  // Construct Order Number
+  const orderNumber =
+    order.orderNumber || `#${order.$id.substring(0, 8).toUpperCase()}`;
+
+  // Construct Address from Order Fields
+  const address = [
+    order.addressLine1,
+    order.addressLine2,
+    order.city,
+    order.region,
+    order.postalCode,
+    order.country,
+  ]
+    .filter((line) => line) // Remove undefined or empty fields
+    .join(", ") || "N/A";
+
+  // Construct Customer Name
+  const customerName = `${order.customerFirstName || ""} ${
+    order.customerLastName || ""
+  }`.trim() || "N/A";
 
   return (
     <div className="page-content">
@@ -153,11 +206,7 @@ const InvoiceDetails = () => {
                             <span className="text-muted fw-normal">
                               Website:
                             </span>{" "}
-                            <Link
-                              to="#"
-                              className="link-primary"
-                              id="website"
-                            >
+                            <Link to="#" className="link-primary" id="website">
                               iwalewah.co.uk
                             </Link>
                           </h6>
@@ -198,7 +247,7 @@ const InvoiceDetails = () => {
                             Payment Status
                           </p>
                           <span className="badge bg-success-subtle text-success fs-11">
-                            {order.paymentStatus}
+                            {order.paymentStatus || "N/A"}
                           </span>
                         </Col>
                         <Col lg={3} xs={6}>
@@ -217,48 +266,29 @@ const InvoiceDetails = () => {
                       <Row className="g-3">
                         <Col sm={6}>
                           <h6 className="text-muted text-uppercase fw-semibold mb-3">
-                            Billing Address
+                            Shipping Address
                           </h6>
                           <p className="fw-medium mb-2" id="billing-name">
-                            {user ? user.name : "N/A"}
+                            {customerName}
                           </p>
                           <p
                             className="text-muted mb-1"
                             id="billing-address-line-1"
                           >
-                            {order.address}
+                            {address}
                           </p>
                           <p className="text-muted mb-1">
                             <span>Phone: </span>
                             <span id="billing-phone-no">
-                              {order.phoneNumber}
+                              {order.phoneNumber || "N/A"}
                             </span>
                           </p>
                           <p className="text-muted mb-0">
                             <span>Email: </span>
-                            <span id="billing-email">{order.email}</span>
+                            <span id="billing-email">{order.email || "N/A"}</span>
                           </p>
                         </Col>
-                        <Col sm={6}>
-                          <h6 className="text-muted text-uppercase fw-semibold mb-3">
-                            Shipping Address
-                          </h6>
-                          <p className="fw-medium mb-2" id="shipping-name">
-                            {user ? user.name : "N/A"}
-                          </p>
-                          <p
-                            className="text-muted mb-1"
-                            id="shipping-address-line-1"
-                          >
-                            {order.address}
-                          </p>
-                          <p className="text-muted mb-1">
-                            <span>Phone: </span>
-                            <span id="shipping-phone-no">
-                              {order.phoneNumber}
-                            </span>
-                          </p>
-                        </Col>
+                        
                       </Row>
                     </CardBody>
                   </Col>
@@ -285,16 +315,13 @@ const InvoiceDetails = () => {
                                 <th scope="row">{index + 1}</th>
                                 <td className="text-start">
                                   <span className="fw-medium">
-                                    {item.productName}
+                                    {item.productName || "N/A"}
                                   </span>
                                 </td>
                                 <td>${item.price.toFixed(2)}</td>
                                 <td>{item.quantity}</td>
                                 <td className="text-end">
-                                  $
-                                  {(
-                                    item.price * item.quantity
-                                  ).toFixed(2)}
+                                  ${(item.price * item.quantity).toFixed(2)}
                                 </td>
                               </tr>
                             ))}
@@ -340,7 +367,7 @@ const InvoiceDetails = () => {
                         <p className="text-muted mb-1">
                           Payment Method:{" "}
                           <span className="fw-medium" id="payment-method">
-                            {order.paymentMethod}
+                            {order.paymentMethod || "N/A"}
                           </span>
                         </p>
                         <p className="text-muted">

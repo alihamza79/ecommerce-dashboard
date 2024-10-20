@@ -67,10 +67,9 @@ const EcommerceOrders = () => {
 
   const [isExportCSV, setIsExportCSV] = useState(false);
 
-  const [usersMap, setUsersMap] = useState({}); // Map userId to userName
   const [productsMap, setProductsMap] = useState({}); // Map productId to productName
 
-  // **New State for Date Range Filtering**
+  // New State for Date Range Filtering
   const [dateRange, setDateRange] = useState([]); // Holds [fromDate, toDate]
 
   // Define options for order status and payment method
@@ -91,7 +90,7 @@ const EcommerceOrders = () => {
     { label: "COD", value: "COD" },
   ];
 
-  // **Added Helper Function to Generate Order Number**
+  // Helper Function to Generate Order Number
   const getOrderNumber = (orderId) => {
     return `#${orderId.substring(0, 8).toUpperCase()}`;
   };
@@ -148,18 +147,9 @@ const EcommerceOrders = () => {
     }
   };
 
-  // **Separate fetch functions for Users and Products (Fetch once)**
-  const fetchUsersAndProducts = useCallback(async () => {
+  // Fetch Products
+  const fetchProducts = useCallback(async () => {
     try {
-      // Fetch Users
-      const usersResponse = await db.Users.list();
-      const fetchedUsers = usersResponse.documents;
-      const usersMapLocal = {};
-      fetchedUsers.forEach((user) => {
-        usersMapLocal[user.userId] = user.name; // Adjust based on your Users schema
-      });
-      setUsersMap(usersMapLocal);
-
       // Fetch Products
       const productsResponse = await db.Products.list();
       const fetchedProducts = productsResponse.documents;
@@ -169,17 +159,17 @@ const EcommerceOrders = () => {
       });
       setProductsMap(productsMapLocal);
     } catch (err) {
-      console.error("Fetch Users and Products Error:", err);
+      console.error("Fetch Products Error:", err);
       const errorMessage =
         (err.response && err.response.data && err.response.data.message) ||
         err.message ||
-        "Failed to fetch users or products.";
+        "Failed to fetch products.";
       setError(errorMessage);
       toast.error(errorMessage, { autoClose: 5000 });
     }
   }, []);
 
-  // **Separate fetch function for Orders and OrderItems (Dependent on dateRange)**
+  // Fetch Orders and OrderItems
   const fetchOrdersAndItems = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -189,8 +179,8 @@ const EcommerceOrders = () => {
       // Filter based on date range
       if (dateRange.length === 2) {
         const [fromDate, toDate] = dateRange;
-        const fromDateTime = moment(fromDate).startOf('day').toISOString();
-        const toDateTime = moment(toDate).endOf('day').toISOString();
+        const fromDateTime = moment(fromDate).startOf("day").toISOString();
+        const toDateTime = moment(toDate).endOf("day").toISOString();
         queries.push(Query.greaterThanEqual("createdAt", fromDateTime));
         queries.push(Query.lessThanEqual("createdAt", toDateTime));
       }
@@ -198,8 +188,15 @@ const EcommerceOrders = () => {
       // Fetch Orders with Queries
       const ordersResponse = await db.Orders.list(queries);
       const fetchedOrders = ordersResponse.documents;
-      setOrders(fetchedOrders);
-      setFilteredOrders(fetchedOrders);
+
+      // Add orderNumber to each order
+      const ordersWithNumber = fetchedOrders.map((order) => ({
+        ...order,
+        orderNumber: getOrderNumber(order.$id),
+      }));
+
+      setOrders(ordersWithNumber);
+      setFilteredOrders(ordersWithNumber);
 
       // If there are no orders, clear orderItems
       if (isEmpty(fetchedOrders)) {
@@ -208,13 +205,15 @@ const EcommerceOrders = () => {
       }
 
       // Fetch OrderItems for the fetched orders
-      const orderIds = fetchedOrders.map(order => order.$id);
+      const orderIds = fetchedOrders.map((order) => order.$id);
       const orderItemsMap = {};
 
       // Assuming db.OrderItems.list can accept queries, fetch order items by orderIds
       if (orderIds.length > 0) {
+        // Modify the query to fetch order items for multiple orderIds
+        // Note: Appwrite's Query.equal can accept an array for 'orderId'
         const orderItemsResponse = await db.OrderItems.list([
-          Query.equal("orderId", orderIds)
+          Query.equal("orderId", orderIds),
         ]);
         const allOrderItems = orderItemsResponse.documents;
         allOrderItems.forEach((item) => {
@@ -245,7 +244,7 @@ const EcommerceOrders = () => {
 
   // Helper to map activeTab to status
   const activeTabToStatus = (tabId) => {
-    switch(tabId) {
+    switch (tabId) {
       case "2":
         return "Delivered";
       case "3":
@@ -257,41 +256,43 @@ const EcommerceOrders = () => {
     }
   };
 
-  // **Use useEffect to fetch Users and Products once on mount**
+  // Use useEffect to fetch Products once on mount
   useEffect(() => {
-    fetchUsersAndProducts();
-  }, [fetchUsersAndProducts]);
+    fetchProducts();
+  }, [fetchProducts]);
 
-  // **Use useEffect to fetch Orders and OrderItems when dateRange changes**
+  // Use useEffect to fetch Orders and OrderItems when dateRange changes
   useEffect(() => {
     fetchOrdersAndItems();
   }, [fetchOrdersAndItems]);
 
-  // **Memoized function to filter orders based on activeTab**
+  // Memoized function to filter orders based on activeTab
   const applyTabFilter = useCallback(() => {
     if (activeTab === "1") {
       // All Orders
       setFilteredOrders(orders);
     } else {
       const status = activeTabToStatus(activeTab);
-      const filtered = orders.filter(order => order.orderStatus === status);
+      const filtered = orders.filter((order) => order.orderStatus === status);
       setFilteredOrders(filtered);
     }
   }, [activeTab, orders]);
 
-  // **Use useEffect to apply tab filter whenever activeTab or orders change**
+  // Use useEffect to apply tab filter whenever activeTab or orders change
   useEffect(() => {
     applyTabFilter();
   }, [activeTab, orders, applyTabFilter]);
 
   // Handle Select All Checkbox
   const handleSelectAll = () => {
-    const isChecked = selectedCheckBoxDelete.length === filteredOrders.length && filteredOrders.length > 0;
+    const isChecked =
+      selectedCheckBoxDelete.length === filteredOrders.length &&
+      filteredOrders.length > 0;
     if (isChecked) {
       setSelectedCheckBoxDelete([]);
       setIsMultiDeleteButton(false);
     } else {
-      const allOrderIds = filteredOrders.map(order => order.$id);
+      const allOrderIds = filteredOrders.map((order) => order.$id);
       setSelectedCheckBoxDelete(allOrderIds);
       setIsMultiDeleteButton(true);
     }
@@ -299,9 +300,9 @@ const EcommerceOrders = () => {
 
   // Handle Individual Checkbox Change
   const handleCheckboxChange = (orderId) => {
-    setSelectedCheckBoxDelete(prevSelected => {
+    setSelectedCheckBoxDelete((prevSelected) => {
       if (prevSelected.includes(orderId)) {
-        const updatedSelected = prevSelected.filter(id => id !== orderId);
+        const updatedSelected = prevSelected.filter((id) => id !== orderId);
         setIsMultiDeleteButton(updatedSelected.length > 0);
         return updatedSelected;
       } else {
@@ -415,7 +416,10 @@ const EcommerceOrders = () => {
             type="checkbox"
             id="checkBoxAll"
             className="form-check-input"
-            checked={selectedCheckBoxDelete.length === filteredOrders.length && filteredOrders.length > 0}
+            checked={
+              selectedCheckBoxDelete.length === filteredOrders.length &&
+              filteredOrders.length > 0
+            }
             onChange={handleSelectAll}
           />
         ),
@@ -440,21 +444,25 @@ const EcommerceOrders = () => {
         enableColumnFilter: false,
         enableSorting: false,
       },
-      // **Added "Order Number" Column**
+      // Added "Order Number" Column
       {
         header: "Order Number",
-        accessorKey: "$id", // Using $id to generate Order Number
+        accessorKey: "orderNumber", // Using orderNumber from data
         enableColumnFilter: false,
         cell: (cell) => {
-          const orderId = cell.getValue();
-          return getOrderNumber(orderId);
+          const orderNumber = cell.getValue();
+          return orderNumber;
         },
       },
       {
         header: "Customer",
-        accessorKey: "userId", // Assuming order has 'userId' field
+        accessorKey: "customerFirstName", // Using customerFirstName and customerLastName
         enableColumnFilter: false,
-        cell: (cell) => usersMap[cell.getValue()] || "N/A",
+        cell: (cell) => {
+          const firstName = cell.row.original.customerFirstName || "";
+          const lastName = cell.row.original.customerLastName || "";
+          return `${firstName} ${lastName}`.trim() || "N/A";
+        },
       },
       {
         header: "Product",
@@ -541,7 +549,7 @@ const EcommerceOrders = () => {
         },
       },
     ],
-    [orderItems, usersMap, selectedCheckBoxDelete, filteredOrders.length]
+    [orderItems, selectedCheckBoxDelete, filteredOrders.length]
   );
 
   // Ensure badges are styled correctly based on status
@@ -566,10 +574,9 @@ const EcommerceOrders = () => {
         onCloseClick={() => setIsExportCSV(false)}
         data={filteredOrders.map((order, index) => ({
           no: index + 1,
-          orderNumber: getOrderNumber(order.$id), // **Included Order Number**
-          customer: usersMap[order.userId] || "N/A",
-          // **Modified Product Field to Include All Products Separated by Comma**
-          product: (orderItems[order.$id] || []).map(item => item.productName).join(", ") || "N/A",
+          orderNumber: order.orderNumber, // Included Order Number
+          customer: `${order.customerFirstName || ""} ${order.customerLastName || ""}`.trim() || "N/A",
+          product: (orderItems[order.$id] || []).map((item) => item.productName).join(", ") || "N/A",
           orderDate: moment(order.createdAt).format("DD MMM YYYY, hh:mm A"),
           amount: `$${parseFloat(order.totalPrice).toFixed(2)}`,
           paymentMethod: order.paymentMethod,
@@ -583,6 +590,8 @@ const EcommerceOrders = () => {
         show={deleteModal}
         onDeleteClick={confirmDeleteOrder}
         onCloseClick={() => setDeleteModal(false)}
+        title="Delete Order"
+        message="Are you sure you want to delete this order?"
       />
 
       {/* Delete Multiple Orders Modal */}
@@ -641,11 +650,18 @@ const EcommerceOrders = () => {
                         <i className="ri-refresh-line align-bottom me-1"></i> Reset
                       </Button>
                       {/* Export CSV Button */}
-                      <Button color="info" onClick={() => setIsExportCSV(true)} className="me-2">
+                      <Button
+                        color="info"
+                        onClick={() => setIsExportCSV(true)}
+                        className="me-2"
+                      >
                         <i className="ri-file-download-line align-bottom me-1"></i> Export
                       </Button>
                       {isMultiDeleteButton && (
-                        <Button color="danger" onClick={() => setDeleteModalMulti(true)}>
+                        <Button
+                          color="danger"
+                          onClick={() => setDeleteModalMulti(true)}
+                        >
                           <i className="ri-delete-bin-2-line"></i>
                         </Button>
                       )}
@@ -657,10 +673,16 @@ const EcommerceOrders = () => {
               <CardBody className="pt-0">
                 <div>
                   {/* Tabs for Filtering Orders */}
-                  <Nav className="nav-tabs nav-tabs-custom nav-success" role="tablist">
+                  <Nav
+                    className="nav-tabs nav-tabs-custom nav-success"
+                    role="tablist"
+                  >
                     <NavItem>
                       <NavLink
-                        className={classnames({ active: activeTab === "1" }, "fw-semibold")}
+                        className={classnames(
+                          { active: activeTab === "1" },
+                          "fw-semibold"
+                        )}
                         onClick={() => handleTabClick("1", "All")}
                         href="#"
                       >
@@ -669,7 +691,10 @@ const EcommerceOrders = () => {
                     </NavItem>
                     <NavItem>
                       <NavLink
-                        className={classnames({ active: activeTab === "2" }, "fw-semibold")}
+                        className={classnames(
+                          { active: activeTab === "2" },
+                          "fw-semibold"
+                        )}
                         onClick={() => handleTabClick("2", "Delivered")}
                         href="#"
                       >
@@ -678,7 +703,10 @@ const EcommerceOrders = () => {
                     </NavItem>
                     <NavItem>
                       <NavLink
-                        className={classnames({ active: activeTab === "3" }, "fw-semibold")}
+                        className={classnames(
+                          { active: activeTab === "3" },
+                          "fw-semibold"
+                        )}
                         onClick={() => handleTabClick("3", "Pickups")}
                         href="#"
                       >
@@ -690,7 +718,10 @@ const EcommerceOrders = () => {
                     </NavItem>
                     <NavItem>
                       <NavLink
-                        className={classnames({ active: activeTab === "4" }, "fw-semibold")}
+                        className={classnames(
+                          { active: activeTab === "4" },
+                          "fw-semibold"
+                        )}
                         onClick={() => handleTabClick("4", "Returns")}
                         href="#"
                       >
@@ -723,13 +754,20 @@ const EcommerceOrders = () => {
                       theadClass="table-light text-muted"
                       handleOrderClick={() => {}}
                       isOrderFilter={true}
-                      SearchPlaceholder="Search for customer, product, or delivery status..."
+                      SearchPlaceholder="Search for order number or customer..."
+                      globalFilterFn="fuzzy" // Ensure 'fuzzy' is used for flexible searching
+                      filterFields={["orderNumber", "customerFirstName", "customerLastName"]} // Specify fields to filter on
                     />
                   )}
                 </div>
 
                 {/* Edit Order Modal */}
-                <Modal id="showModal" isOpen={modal} toggle={toggleModal} centered>
+                <Modal
+                  id="showModal"
+                  isOpen={modal}
+                  toggle={toggleModal}
+                  centered
+                >
                   <ModalHeader className="bg-light p-3" toggle={toggleModal}>
                     {isEdit ? "Edit Delivery Status" : "Add Order"}
                   </ModalHeader>
@@ -749,11 +787,14 @@ const EcommerceOrders = () => {
                             onChange={formik.handleChange}
                             onBlur={formik.handleBlur}
                             value={formik.values.status}
-                            invalid={formik.touched.status && Boolean(formik.errors.status)}
+                            invalid={
+                              formik.touched.status &&
+                              Boolean(formik.errors.status)
+                            }
                           >
                             <option value="">Select Delivery Status</option>
                             {orderStatusOptions
-                              .filter(option => option.value !== "All") // Exclude "All" in edit mode
+                              .filter((option) => option.value !== "All") // Exclude "All" in edit mode
                               .map((option, idx) => (
                                 <option value={option.value} key={idx}>
                                   {option.label}
@@ -794,6 +835,18 @@ const EcommerceOrders = () => {
       </Container>
     </div>
   );
+};
+
+// Helper function to get status color
+const getStatusColor = (status) => {
+  const statusColors = {
+    Pending: "warning",
+    Inprogress: "secondary",
+    Pickups: "info",
+    Returns: "primary",
+    Delivered: "success",
+  };
+  return statusColors[status] || "light";
 };
 
 export default EcommerceOrders;

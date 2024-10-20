@@ -18,7 +18,7 @@ import {
   Label,
   Input,
   FormFeedback,
-  Button
+  Button,
 } from "reactstrap";
 import moment from "moment";
 import { Link } from "react-router-dom";
@@ -28,7 +28,7 @@ import TableContainer from "../../../Components/Common/TableContainer";
 import DeleteModal from "../../../Components/Common/DeleteModal";
 import { isEmpty } from "lodash";
 
-// Formik
+// Formik and Yup for form handling
 import * as Yup from "yup";
 import { useFormik } from "formik";
 
@@ -41,6 +41,9 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 import ExportCSVModal from "../../../Components/Common/ExportCSVModal";
+
+import { Query } from "appwrite"; // Ensure correct import
+import Flatpickr from "react-flatpickr";
 
 const EcommerceOrders = () => {
   // State Management
@@ -66,6 +69,9 @@ const EcommerceOrders = () => {
 
   const [usersMap, setUsersMap] = useState({}); // Map userId to userName
   const [productsMap, setProductsMap] = useState({}); // Map productId to productName
+
+  // **New State for Date Range Filtering**
+  const [dateRange, setDateRange] = useState([]); // Holds [fromDate, toDate]
 
   // Define options for order status and payment method
   const orderStatusOptions = [
@@ -142,32 +148,9 @@ const EcommerceOrders = () => {
     }
   };
 
-  // Fetch Orders, OrderItems, Users, and Products from Appwrite
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  // **Separate fetch functions for Users and Products (Fetch once)**
+  const fetchUsersAndProducts = useCallback(async () => {
     try {
-      // Fetch Orders
-      const ordersResponse = await db.Orders.list();
-      const fetchedOrders = ordersResponse.documents;
-      setOrders(fetchedOrders);
-      setFilteredOrders(fetchedOrders);
-
-      // Fetch OrderItems
-      const orderItemsMap = {};
-      const allOrderItemsResponse = await db.OrderItems.list();
-      const allOrderItems = allOrderItemsResponse.documents;
-      allOrderItems.forEach((item) => {
-        if (item.orderId) {
-          if (orderItemsMap[item.orderId]) {
-            orderItemsMap[item.orderId].push(item);
-          } else {
-            orderItemsMap[item.orderId] = [item];
-          }
-        }
-      });
-      setOrderItems(orderItemsMap);
-
       // Fetch Users
       const usersResponse = await db.Users.list();
       const fetchedUsers = usersResponse.documents;
@@ -186,7 +169,69 @@ const EcommerceOrders = () => {
       });
       setProductsMap(productsMapLocal);
     } catch (err) {
-      console.error("Fetch Data Error:", err);
+      console.error("Fetch Users and Products Error:", err);
+      const errorMessage =
+        (err.response && err.response.data && err.response.data.message) ||
+        err.message ||
+        "Failed to fetch users or products.";
+      setError(errorMessage);
+      toast.error(errorMessage, { autoClose: 5000 });
+    }
+  }, []);
+
+  // **Separate fetch function for Orders and OrderItems (Dependent on dateRange)**
+  const fetchOrdersAndItems = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const queries = [];
+
+      // Filter based on date range
+      if (dateRange.length === 2) {
+        const [fromDate, toDate] = dateRange;
+        const fromDateTime = moment(fromDate).startOf('day').toISOString();
+        const toDateTime = moment(toDate).endOf('day').toISOString();
+        queries.push(Query.greaterThanEqual("createdAt", fromDateTime));
+        queries.push(Query.lessThanEqual("createdAt", toDateTime));
+      }
+
+      // Fetch Orders with Queries
+      const ordersResponse = await db.Orders.list(queries);
+      const fetchedOrders = ordersResponse.documents;
+      setOrders(fetchedOrders);
+      setFilteredOrders(fetchedOrders);
+
+      // If there are no orders, clear orderItems
+      if (isEmpty(fetchedOrders)) {
+        setOrderItems({});
+        return;
+      }
+
+      // Fetch OrderItems for the fetched orders
+      const orderIds = fetchedOrders.map(order => order.$id);
+      const orderItemsMap = {};
+
+      // Assuming db.OrderItems.list can accept queries, fetch order items by orderIds
+      if (orderIds.length > 0) {
+        const orderItemsResponse = await db.OrderItems.list([
+          Query.equal("orderId", orderIds)
+        ]);
+        const allOrderItems = orderItemsResponse.documents;
+        allOrderItems.forEach((item) => {
+          if (item.orderId) {
+            if (orderItemsMap[item.orderId]) {
+              orderItemsMap[item.orderId].push(item);
+            } else {
+              orderItemsMap[item.orderId] = [item];
+            }
+          }
+        });
+        setOrderItems(orderItemsMap);
+      } else {
+        setOrderItems({});
+      }
+    } catch (err) {
+      console.error("Fetch Orders and Items Error:", err);
       const errorMessage =
         (err.response && err.response.data && err.response.data.message) ||
         err.message ||
@@ -196,29 +241,75 @@ const EcommerceOrders = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [dateRange]);
 
+  // Helper to map activeTab to status
+  const activeTabToStatus = (tabId) => {
+    switch(tabId) {
+      case "2":
+        return "Delivered";
+      case "3":
+        return "Pickups";
+      case "4":
+        return "Returns";
+      default:
+        return "All";
+    }
+  };
+
+  // **Use useEffect to fetch Users and Products once on mount**
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchUsersAndProducts();
+  }, [fetchUsersAndProducts]);
+
+  // **Use useEffect to fetch Orders and OrderItems when dateRange changes**
+  useEffect(() => {
+    fetchOrdersAndItems();
+  }, [fetchOrdersAndItems]);
+
+  // **Memoized function to filter orders based on activeTab**
+  const applyTabFilter = useCallback(() => {
+    if (activeTab === "1") {
+      // All Orders
+      setFilteredOrders(orders);
+    } else {
+      const status = activeTabToStatus(activeTab);
+      const filtered = orders.filter(order => order.orderStatus === status);
+      setFilteredOrders(filtered);
+    }
+  }, [activeTab, orders]);
+
+  // **Use useEffect to apply tab filter whenever activeTab or orders change**
+  useEffect(() => {
+    applyTabFilter();
+  }, [activeTab, orders, applyTabFilter]);
 
   // Handle Select All Checkbox
   const handleSelectAll = () => {
-    const checkAll = document.getElementById("checkBoxAll");
-    const checkboxes = document.querySelectorAll(".orderCheckBox");
-    checkboxes.forEach((checkbox) => {
-      checkbox.checked = checkAll.checked;
-    });
-    handleCheckboxChange();
+    const isChecked = selectedCheckBoxDelete.length === filteredOrders.length && filteredOrders.length > 0;
+    if (isChecked) {
+      setSelectedCheckBoxDelete([]);
+      setIsMultiDeleteButton(false);
+    } else {
+      const allOrderIds = filteredOrders.map(order => order.$id);
+      setSelectedCheckBoxDelete(allOrderIds);
+      setIsMultiDeleteButton(true);
+    }
   };
 
   // Handle Individual Checkbox Change
-  const handleCheckboxChange = () => {
-    const selected = Array.from(document.querySelectorAll(".orderCheckBox:checked")).map(
-      (checkbox) => checkbox.value
-    );
-    setSelectedCheckBoxDelete(selected);
-    setIsMultiDeleteButton(selected.length > 0);
+  const handleCheckboxChange = (orderId) => {
+    setSelectedCheckBoxDelete(prevSelected => {
+      if (prevSelected.includes(orderId)) {
+        const updatedSelected = prevSelected.filter(id => id !== orderId);
+        setIsMultiDeleteButton(updatedSelected.length > 0);
+        return updatedSelected;
+      } else {
+        const updatedSelected = [...prevSelected, orderId];
+        setIsMultiDeleteButton(updatedSelected.length > 0);
+        return updatedSelected;
+      }
+    });
   };
 
   // Confirm Delete Multiple Orders
@@ -235,6 +326,8 @@ const EcommerceOrders = () => {
       setFilteredOrders((prevOrders) =>
         prevOrders.filter((order) => !selectedCheckBoxDelete.includes(order.$id))
       );
+      setSelectedCheckBoxDelete([]);
+      setIsMultiDeleteButton(false);
       toast.success("Selected orders deleted successfully", { autoClose: 3000 });
     } catch (err) {
       console.error("Delete Multiple Orders Error:", err);
@@ -247,20 +340,13 @@ const EcommerceOrders = () => {
     } finally {
       setLoading(false);
       setDeleteModalMulti(false);
-      setSelectedCheckBoxDelete([]);
-      setIsMultiDeleteButton(false);
     }
   };
 
   // Filter Orders Based on Tab Selection
   const handleTabClick = (tabId, statusType) => {
     setActiveTab(tabId);
-    if (statusType === "All") {
-      setFilteredOrders(orders);
-    } else {
-      const filtered = orders.filter((order) => order.orderStatus === statusType);
-      setFilteredOrders(filtered);
-    }
+    // applyTabFilter will be called via useEffect due to dependency on activeTab
   };
 
   // Formik for Edit Order Form
@@ -329,7 +415,8 @@ const EcommerceOrders = () => {
             type="checkbox"
             id="checkBoxAll"
             className="form-check-input"
-            onClick={handleSelectAll}
+            checked={selectedCheckBoxDelete.length === filteredOrders.length && filteredOrders.length > 0}
+            onChange={handleSelectAll}
           />
         ),
         cell: (cell) => (
@@ -337,7 +424,8 @@ const EcommerceOrders = () => {
             type="checkbox"
             className="orderCheckBox form-check-input"
             value={cell.row.original.$id}
-            onChange={handleCheckboxChange}
+            checked={selectedCheckBoxDelete.includes(cell.row.original.$id)}
+            onChange={() => handleCheckboxChange(cell.row.original.$id)}
           />
         ),
         id: "#",
@@ -453,15 +541,8 @@ const EcommerceOrders = () => {
         },
       },
     ],
-    [orderItems, usersMap]
+    [orderItems, usersMap, selectedCheckBoxDelete, filteredOrders.length]
   );
-
-  // Fetch orders, order items, users, and products on component mount
-  useEffect(() => {
-    if (isEmpty(orders)) {
-      fetchData();
-    }
-  }, [fetchData, orders]);
 
   // Ensure badges are styled correctly based on status
   const getStatusBadge = (status) => {
@@ -483,11 +564,12 @@ const EcommerceOrders = () => {
       <ExportCSVModal
         show={isExportCSV}
         onCloseClick={() => setIsExportCSV(false)}
-        data={filteredOrders.map((order) => ({
-          no: filteredOrders.indexOf(order) + 1,
+        data={filteredOrders.map((order, index) => ({
+          no: index + 1,
           orderNumber: getOrderNumber(order.$id), // **Included Order Number**
           customer: usersMap[order.userId] || "N/A",
-          product: orderItems[order.$id]?.[0]?.productName || "N/A",
+          // **Modified Product Field to Include All Products Separated by Comma**
+          product: (orderItems[order.$id] || []).map(item => item.productName).join(", ") || "N/A",
           orderDate: moment(order.createdAt).format("DD MMM YYYY, hh:mm A"),
           amount: `$${parseFloat(order.totalPrice).toFixed(2)}`,
           paymentMethod: order.paymentMethod,
@@ -526,8 +608,40 @@ const EcommerceOrders = () => {
                   </div>
                   <div className="col-sm-auto">
                     <div className="d-flex gap-1 flex-wrap">
-                      {/* Removed "Create Order" Button */}
-                      <Button color="info" onClick={() => setIsExportCSV(true)}>
+                      {/* Date Range Filter with Input Group */}
+                      <div className="col-sm-auto">
+                        <div className="input-group me-2">
+                          <Flatpickr
+                            id="dateRange"
+                            className="form-control border-0 dash-filter-picker shadow"
+                            options={{
+                              mode: "range",
+                              dateFormat: "d M, Y",
+                            }}
+                            value={dateRange}
+                            onChange={(selectedDates) => {
+                              setDateRange(selectedDates);
+                            }}
+                            placeholder="Select Date Range"
+                          />
+                          <div className="input-group-text bg-primary border-primary text-white">
+                            <i className="ri-calendar-2-line"></i>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Reset Button */}
+                      <Button
+                        color="secondary"
+                        onClick={() => {
+                          setDateRange([]);
+                          // fetchOrdersAndItems will be called via useEffect
+                        }}
+                        className="me-2"
+                      >
+                        <i className="ri-refresh-line align-bottom me-1"></i> Reset
+                      </Button>
+                      {/* Export CSV Button */}
+                      <Button color="info" onClick={() => setIsExportCSV(true)} className="me-2">
                         <i className="ri-file-download-line align-bottom me-1"></i> Export
                       </Button>
                       {isMultiDeleteButton && (

@@ -48,7 +48,7 @@ import Flatpickr from "react-flatpickr";
 const EcommerceOrders = () => {
   // State Management
   const [orders, setOrders] = useState([]);
-  const [orderItems, setOrderItems] = useState({});
+  // Removed orderItems state as it's no longer needed
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -67,10 +67,14 @@ const EcommerceOrders = () => {
 
   const [isExportCSV, setIsExportCSV] = useState(false);
 
-  const [productsMap, setProductsMap] = useState({}); // Map productId to productName
+  // Removed productsMap state as it's no longer needed
 
   // New State for Date Range Filtering
   const [dateRange, setDateRange] = useState([]); // Holds [fromDate, toDate]
+
+  // Pagination States
+  const [cursor, setCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
 
   // Define options for order status and payment method
   const orderStatusOptions = [
@@ -147,30 +151,12 @@ const EcommerceOrders = () => {
     }
   };
 
-  // Fetch Products
-  const fetchProducts = useCallback(async () => {
-    try {
-      // Fetch Products
-      const productsResponse = await db.Products.list();
-      const fetchedProducts = productsResponse.documents;
-      const productsMapLocal = {};
-      fetchedProducts.forEach((product) => {
-        productsMapLocal[product.productId] = product.productName; // Adjust based on your Products schema
-      });
-      setProductsMap(productsMapLocal);
-    } catch (err) {
-      console.error("Fetch Products Error:", err);
-      const errorMessage =
-        (err.response && err.response.data && err.response.data.message) ||
-        err.message ||
-        "Failed to fetch products.";
-      setError(errorMessage);
-      toast.error(errorMessage, { autoClose: 5000 });
-    }
-  }, []);
+  // Fetch Products - Removed as not needed
 
   // Fetch Orders and OrderItems
   const fetchOrdersAndItems = useCallback(async () => {
+    if (!hasMore) return; // No more orders to fetch
+
     setLoading(true);
     setError(null);
     try {
@@ -185,9 +171,38 @@ const EcommerceOrders = () => {
         queries.push(Query.lessThanEqual("createdAt", toDateTime));
       }
 
+      // Add ordering and limit
+      queries.push(Query.orderDesc("createdAt")); // Order by latest first
+      queries.push(Query.limit(100)); // Set limit to 100 (Appwrite's maximum per request)
+
+      // Optionally select specific fields to optimize data transfer
+      queries.push(
+        Query.select([
+          "$id",
+          "orderStatus",
+          "createdAt",
+          "totalPrice",
+          "paymentMethod",
+          "customerFirstName",
+          "customerLastName",
+        ])
+      );
+
+      // Add cursor if exists for pagination
+      if (cursor) {
+        queries.push(Query.cursorAfter(cursor));
+      }
+
       // Fetch Orders with Queries
       const ordersResponse = await db.Orders.list(queries);
       const fetchedOrders = ordersResponse.documents;
+
+      if (fetchedOrders.length < 100) {
+        setHasMore(false); // No more orders to fetch
+      } else {
+        const lastOrder = fetchedOrders[fetchedOrders.length - 1];
+        setCursor(lastOrder.$id);
+      }
 
       // Add orderNumber to each order
       const ordersWithNumber = fetchedOrders.map((order) => ({
@@ -195,40 +210,17 @@ const EcommerceOrders = () => {
         orderNumber: getOrderNumber(order.$id),
       }));
 
-      setOrders(ordersWithNumber);
-      setFilteredOrders(ordersWithNumber);
+      setOrders((prevOrders) => [...prevOrders, ...ordersWithNumber]);
+      setFilteredOrders((prevOrders) => [...prevOrders, ...ordersWithNumber]);
 
       // If there are no orders, clear orderItems
       if (isEmpty(fetchedOrders)) {
-        setOrderItems({});
+        // No orderItems to set
         return;
       }
 
-      // Fetch OrderItems for the fetched orders
-      const orderIds = fetchedOrders.map((order) => order.$id);
-      const orderItemsMap = {};
-
-      // Assuming db.OrderItems.list can accept queries, fetch order items by orderIds
-      if (orderIds.length > 0) {
-        // Modify the query to fetch order items for multiple orderIds
-        // Note: Appwrite's Query.equal can accept an array for 'orderId'
-        const orderItemsResponse = await db.OrderItems.list([
-          Query.equal("orderId", orderIds),
-        ]);
-        const allOrderItems = orderItemsResponse.documents;
-        allOrderItems.forEach((item) => {
-          if (item.orderId) {
-            if (orderItemsMap[item.orderId]) {
-              orderItemsMap[item.orderId].push(item);
-            } else {
-              orderItemsMap[item.orderId] = [item];
-            }
-          }
-        });
-        setOrderItems(orderItemsMap);
-      } else {
-        setOrderItems({});
-      }
+      // Fetch OrderItems for the fetched orders - Removed as not needed
+      // Removed the entire block fetching order items
     } catch (err) {
       console.error("Fetch Orders and Items Error:", err);
       const errorMessage =
@@ -240,7 +232,7 @@ const EcommerceOrders = () => {
     } finally {
       setLoading(false);
     }
-  }, [dateRange]);
+  }, [dateRange, cursor, hasMore]);
 
   // Helper to map activeTab to status
   const activeTabToStatus = (tabId) => {
@@ -256,12 +248,10 @@ const EcommerceOrders = () => {
     }
   };
 
-  // Use useEffect to fetch Products once on mount
-  useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
+  // Use useEffect to fetch Products once on mount - Removed as not needed
+  // Removed useEffect for fetchProducts
 
-  // Use useEffect to fetch Orders and OrderItems when dateRange changes
+  // Use useEffect to fetch Orders and OrderItems when dateRange or cursor changes
   useEffect(() => {
     fetchOrdersAndItems();
   }, [fetchOrdersAndItems]);
@@ -347,16 +337,20 @@ const EcommerceOrders = () => {
   // Filter Orders Based on Tab Selection
   const handleTabClick = (tabId, statusType) => {
     setActiveTab(tabId);
+    // Reset filtered orders when tab changes
     // applyTabFilter will be called via useEffect due to dependency on activeTab
   };
 
   // Formik for Edit Order Form
   const formik = useFormik({
     enableReinitialize: true,
-    initialValues: isEdit && selectedOrder ? {
-      // Only include deliveryStatus in edit mode
-      status: selectedOrder.orderStatus,
-    } : {},
+    initialValues:
+      isEdit && selectedOrder
+        ? {
+            // Only include deliveryStatus in edit mode
+            status: selectedOrder.orderStatus,
+          }
+        : {},
     validationSchema: Yup.object({
       status: Yup.string().required("Please select Delivery Status"),
     }),
@@ -464,6 +458,8 @@ const EcommerceOrders = () => {
           return `${firstName} ${lastName}`.trim() || "N/A";
         },
       },
+      // Removed "Product" Column
+      /*
       {
         header: "Product",
         accessorKey: "$id", // Using $id to fetch the first product
@@ -474,6 +470,7 @@ const EcommerceOrders = () => {
           return items.length > 0 ? items[0].productName : "N/A";
         },
       },
+      */
       {
         header: "Order Date",
         accessorKey: "createdAt",
@@ -549,7 +546,8 @@ const EcommerceOrders = () => {
         },
       },
     ],
-    [orderItems, selectedCheckBoxDelete, filteredOrders.length]
+    [selectedCheckBoxDelete, filteredOrders.length]
+    // Removed orderItems from dependencies
   );
 
   // Ensure badges are styled correctly based on status
@@ -575,8 +573,10 @@ const EcommerceOrders = () => {
         data={filteredOrders.map((order, index) => ({
           no: index + 1,
           orderNumber: order.orderNumber, // Included Order Number
-          customer: `${order.customerFirstName || ""} ${order.customerLastName || ""}`.trim() || "N/A",
-          product: (orderItems[order.$id] || []).map((item) => item.productName).join(", ") || "N/A",
+          customer: `${order.customerFirstName || ""} ${
+            order.customerLastName || ""
+          }`.trim() || "N/A",
+          // Removed 'product' field from CSV export
           orderDate: moment(order.createdAt).format("DD MMM YYYY, hh:mm A"),
           amount: `$${parseFloat(order.totalPrice).toFixed(2)}`,
           paymentMethod: order.paymentMethod,
@@ -630,6 +630,11 @@ const EcommerceOrders = () => {
                             value={dateRange}
                             onChange={(selectedDates) => {
                               setDateRange(selectedDates);
+                              // Reset pagination when date range changes
+                              setOrders([]);
+                              setFilteredOrders([]);
+                              setCursor(null);
+                              setHasMore(true);
                             }}
                             placeholder="Select Date Range"
                           />
@@ -643,6 +648,10 @@ const EcommerceOrders = () => {
                         color="secondary"
                         onClick={() => {
                           setDateRange([]);
+                          setOrders([]);
+                          setFilteredOrders([]);
+                          setCursor(null);
+                          setHasMore(true);
                           // fetchOrdersAndItems will be called via useEffect
                         }}
                         className="me-2"
@@ -732,7 +741,7 @@ const EcommerceOrders = () => {
                   </Nav>
 
                   {/* Table or Loader or Error */}
-                  {loading ? (
+                  {loading && orders.length === 0 ? (
                     <Loader />
                   ) : error ? (
                     <div className="alert alert-danger mt-3" role="alert">
@@ -743,21 +752,35 @@ const EcommerceOrders = () => {
                       No orders found.
                     </div>
                   ) : (
-                    <TableContainer
-                      columns={columns}
-                      data={filteredOrders}
-                      isGlobalFilter={true}
-                      isAddUserList={false}
-                      customPageSize={8}
-                      divClass="table-responsive table-card mb-1"
-                      tableClass="align-middle table-nowrap"
-                      theadClass="table-light text-muted"
-                      handleOrderClick={() => {}}
-                      isOrderFilter={true}
-                      SearchPlaceholder="Search for order number or customer..."
-                      globalFilterFn="fuzzy" // Ensure 'fuzzy' is used for flexible searching
-                      filterFields={["orderNumber", "customerFirstName", "customerLastName"]} // Specify fields to filter on
-                    />
+                    <>
+                      <TableContainer
+                        columns={columns}
+                        data={filteredOrders}
+                        isGlobalFilter={true}
+                        isAddUserList={false}
+                        customPageSize={8}
+                        divClass="table-responsive table-card mb-1"
+                        tableClass="align-middle table-nowrap"
+                        theadClass="table-light text-muted"
+                        handleOrderClick={() => {}}
+                        isOrderFilter={true}
+                        SearchPlaceholder="Search for order number or customer..."
+                        globalFilterFn="fuzzy" // Ensure 'fuzzy' is used for flexible searching
+                        filterFields={["orderNumber", "customerFirstName", "customerLastName"]} // Specify fields to filter on
+                      />
+                      {/* Load More Button for Pagination */}
+                      {hasMore && (
+                        <div className="d-flex justify-content-center mt-3">
+                          <Button
+                            color="primary"
+                            onClick={fetchOrdersAndItems}
+                            disabled={loading}
+                          >
+                            {loading ? "Loading..." : "Load More"}
+                          </Button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
 

@@ -15,56 +15,67 @@ import {
   Form,
   Label,
   Input,
+  Nav,
+  NavItem,
+  NavLink,
 } from "reactstrap";
 import { toast, ToastContainer } from "react-toastify";
 import db from "../../appwrite/Services/dbServices";
 import TableContainer from "../../Components/Common/TableContainer";
 import { Query } from "appwrite";
+import classnames from "classnames";
 
 const WholesaleRequests = () => {
   const [requests, setRequests] = useState([]);
   const [usersData, setUsersData] = useState({});
-  const [loading, setLoading] = useState(true); // Added loading state
+  const [loading, setLoading] = useState(true);
   const [rejectModal, setRejectModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState("1");
+
+  const [viewModal, setViewModal] = useState(false);
+  const [selectedRequestForView, setSelectedRequestForView] = useState(null);
 
   // Fetch wholesale requests and user data
   const fetchWholesaleRequests = async () => {
     try {
-      setLoading(true); // Set loading to true when fetching starts
-      // Fetch only pending and approved requests (exclude rejected requests)
-      const response = await db.WholesaleAccountRequests.list([
-        Query.notEqual("status", "rejected"),
-      ]);
+      setLoading(true);
+      // Fetch all requests with a high limit
+      const response = await db.WholesaleAccountRequests.list([], 100);
 
       setRequests(response.documents);
 
-      // Fetch user details for each request
+      // Collect all userIds
+      const userIds = response.documents.map((request) => request.userId);
+
+      // Fetch user details for each userId in bulk
+      const userListResponse = await db.Users.list(
+        [Query.equal("userId", userIds)],
+        100
+      );
+
+      // Build a map of userId to user data
       const usersMap = {};
-      for (const request of response.documents) {
-        const userId = request.userId;
-        try {
-          // Fetch user where 'userId' field equals the userId from the request
-          const userList = await db.Users.list([Query.equal("userId", userId)]);
-          if (userList.total > 0) {
-            usersMap[userId] = userList.documents[0];
-          } else {
-            console.error(`User with userId ${userId} not found.`);
-            usersMap[userId] = { name: "Unknown", email: "" };
-          }
-        } catch (error) {
-          console.error(`Error fetching user with userId ${userId}:`, error);
+      userListResponse.documents.forEach((user) => {
+        usersMap[user.userId] = user;
+      });
+
+      // For userIds not found, assign default values
+      userIds.forEach((userId) => {
+        if (!usersMap[userId]) {
+          console.error(`User with userId ${userId} not found.`);
           usersMap[userId] = { name: "Unknown", email: "" };
         }
-      }
+      });
+
       setUsersData(usersMap);
     } catch (error) {
       console.error("Error fetching wholesale requests:", error);
       toast.error("Failed to fetch wholesale requests.");
     } finally {
-      setLoading(false); // Set loading to false when fetching is done
+      setLoading(false);
     }
   };
 
@@ -78,10 +89,10 @@ const WholesaleRequests = () => {
       // Update the request status to 'approved'
       await db.WholesaleAccountRequests.update(request.$id, {
         status: "approved",
+        rejectionReason: "", // Clear rejection reason
       });
 
       // Update the user's isWholesaleApproved property to true
-      // First, fetch the user document ID from the Users collection
       const userId = request.userId;
       const userList = await db.Users.list([Query.equal("userId", userId)]);
       if (userList.total > 0) {
@@ -134,24 +145,58 @@ const WholesaleRequests = () => {
     }
   };
 
-  // Filter requests based on the search term and user name
+  // Handle viewing request details
+  const handleViewDetails = (request) => {
+    setSelectedRequestForView(request);
+    setViewModal(true);
+  };
+
+  // Filter requests based on the active tab and search term
   const filteredRequests = useMemo(() => {
-    if (!searchTerm) {
-      return requests;
+    let filtered = requests;
+
+    switch (activeTab) {
+      case "1":
+        // Pending
+        filtered = requests.filter((request) => request.status === "pending");
+        break;
+      case "2":
+        // Approved
+        filtered = requests.filter((request) => request.status === "approved");
+        break;
+      case "3":
+        // Rejected
+        filtered = requests.filter((request) => request.status === "rejected");
+        break;
+      default:
+        filtered = requests;
     }
-    const lowercasedSearchTerm = searchTerm.toLowerCase();
-    return requests.filter((request) => {
-      const user = usersData[request.userId];
-      if (user && user.name) {
-        return user.name.toLowerCase().includes(lowercasedSearchTerm);
-      }
-      return false;
-    });
-  }, [searchTerm, requests, usersData]);
+
+    // Apply search term
+    if (searchTerm) {
+      const lowercasedSearchTerm = searchTerm.toLowerCase();
+      filtered = filtered.filter((request) => {
+        const user = usersData[request.userId];
+        if (user && user.name) {
+          return user.name.toLowerCase().includes(lowercasedSearchTerm);
+        }
+        return false;
+      });
+    }
+
+    return filtered;
+  }, [activeTab, requests, searchTerm, usersData]);
 
   // Define columns for the table
   const columns = useMemo(
     () => [
+      {
+        header: "No.",
+        cell: (cell) => cell.row.index + 1,
+        id: "serial",
+        enableColumnFilter: false,
+        enableSorting: false,
+      },
       {
         header: "User",
         id: "user",
@@ -176,6 +221,15 @@ const WholesaleRequests = () => {
         disableFilters: true,
       },
       {
+        header: "Rejection Reason",
+        accessorKey: "rejectionReason",
+        disableFilters: true,
+        cell: ({ cell }) => {
+          const value = cell.getValue();
+          return value || "-";
+        },
+      },
+      {
         header: "Status",
         accessorKey: "status",
         id: "status",
@@ -185,15 +239,18 @@ const WholesaleRequests = () => {
           let badgeClass = "";
           switch (status) {
             case "pending":
-              badgeClass = "bg-warning text-dark";
+              badgeClass = "badge bg-warning-subtle text-warning";
               break;
             case "approved":
-              badgeClass = "bg-success text-white";
+              badgeClass = "badge bg-success-subtle text-success";
+              break;
+            case "rejected":
+              badgeClass = "badge bg-danger-subtle text-danger";
               break;
             default:
-              badgeClass = "bg-secondary text-white";
+              badgeClass = "badge bg-secondary-subtle text-secondary";
           }
-          return <span className={`badge ${badgeClass}`}>{status}</span>;
+          return <span className={`${badgeClass}`}>{status}</span>;
         },
       },
       {
@@ -203,30 +260,72 @@ const WholesaleRequests = () => {
         cell: ({ row }) => {
           const request = row.original;
           return (
-            <div className="d-flex">
-              <Button
-                color="success"
-                size="sm"
-                className="me-2"
-                onClick={() => handleApprove(request)}
-                disabled={request.status === "approved"} // Disable if already approved
-              >
-                Approve
-              </Button>
-              <Button
-                color="danger"
-                size="sm"
-                onClick={() => handleReject(request)}
-              >
-                Reject
-              </Button>
-            </div>
+            <ul className="list-inline hstack gap-2 mb-0">
+              <li className="list-inline-item">
+                <Button
+                  color="link"
+                  className="text-primary"
+                  onClick={() => handleViewDetails(request)}
+                >
+                  <i className="ri-eye-fill fs-16"></i>
+                </Button>
+              </li>
+              {request.status === "pending" && (
+                <>
+                  <li className="list-inline-item">
+                    <Button
+                      color="link"
+                      className="text-success"
+                      onClick={() => handleApprove(request)}
+                    >
+                      <i className="ri-checkbox-circle-line fs-16"></i>
+                    </Button>
+                  </li>
+                  <li className="list-inline-item">
+                    <Button
+                      color="link"
+                      className="text-danger"
+                      onClick={() => handleReject(request)}
+                    >
+                      <i className="ri-close-circle-line fs-16"></i>
+                    </Button>
+                  </li>
+                </>
+              )}
+              {request.status === "rejected" && (
+                <li className="list-inline-item">
+                  <Button
+                    color="link"
+                    className="text-secondary"
+                    onClick={() => handleApprove(request)}
+                  >
+                    <i className="ri-checkbox-circle-line fs-16"></i>
+                  </Button>
+                </li>
+              )}
+              {request.status === "approved" && (
+                <li className="list-inline-item">
+                  <Button
+                    color="link"
+                    className="text-danger"
+                    onClick={() => handleReject(request)}
+                  >
+                    <i className="ri-close-circle-line fs-16"></i>
+                  </Button>
+                </li>
+              )}
+            </ul>
           );
         },
       },
     ],
     [usersData]
   );
+
+  // Handle Tab Click
+  const handleTabClick = (tab) => {
+    setActiveTab(tab);
+  };
 
   return (
     <div className="page-content">
@@ -248,7 +347,48 @@ const WholesaleRequests = () => {
           <Col lg={12}>
             <Card>
               <CardHeader>
-                <h4 className="card-title mb-0">Wholesale Account Requests</h4>
+                {/* Tabs */}
+                <Nav
+                  className="nav-tabs nav-tabs-custom nav-success"
+                  role="tablist"
+                >
+                  <NavItem>
+                    <NavLink
+                      className={classnames(
+                        { active: activeTab === "1" },
+                        "fw-semibold"
+                      )}
+                      onClick={() => handleTabClick("1")}
+                      href="#"
+                    >
+                      <i className="ri-time-line me-1 align-bottom"></i> Pending
+                    </NavLink>
+                  </NavItem>
+                  <NavItem>
+                    <NavLink
+                      className={classnames(
+                        { active: activeTab === "2" },
+                        "fw-semibold"
+                      )}
+                      onClick={() => handleTabClick("2")}
+                      href="#"
+                    >
+                      <i className="ri-check-line me-1 align-bottom"></i> Approved
+                    </NavLink>
+                  </NavItem>
+                  <NavItem>
+                    <NavLink
+                      className={classnames(
+                        { active: activeTab === "3" },
+                        "fw-semibold"
+                      )}
+                      onClick={() => handleTabClick("3")}
+                      href="#"
+                    >
+                      <i className="ri-close-line me-1 align-bottom"></i> Rejected
+                    </NavLink>
+                  </NavItem>
+                </Nav>
               </CardHeader>
               <CardBody>
                 {loading ? (
@@ -318,6 +458,60 @@ const WholesaleRequests = () => {
             </div>
           </Form>
         </ModalBody>
+      </Modal>
+
+      {/* View Details Modal */}
+      <Modal
+        isOpen={viewModal}
+        toggle={() => setViewModal(!viewModal)}
+        centered
+      >
+        <ModalHeader toggle={() => setViewModal(!viewModal)}>
+          Request Details
+        </ModalHeader>
+        <ModalBody>
+          {selectedRequestForView ? (
+            <Form>
+              <Label for="userName">User Name</Label>
+              <Input
+                type="text"
+                id="userName"
+                value={
+                  usersData[selectedRequestForView.userId]?.name || "Unknown"
+                }
+                readOnly
+              />
+              <Label for="userEmail" className="mt-3">
+                User Email
+              </Label>
+              <Input
+                type="text"
+                id="userEmail"
+                value={
+                  usersData[selectedRequestForView.userId]?.email || ""
+                }
+                readOnly
+              />
+              <Label for="reason" className="mt-3">
+                Reason
+              </Label>
+              <Input
+                type="textarea"
+                id="reason"
+                value={selectedRequestForView.reason}
+                readOnly
+              />
+              {/* Add more fields here as needed in the future */}
+            </Form>
+          ) : (
+            <div>Loading...</div>
+          )}
+        </ModalBody>
+        <div className="modal-footer">
+          <Button color="secondary" onClick={() => setViewModal(false)}>
+            Close
+          </Button>
+        </div>
       </Modal>
     </div>
   );

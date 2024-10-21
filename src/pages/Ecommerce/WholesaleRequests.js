@@ -24,6 +24,8 @@ import db from "../../appwrite/Services/dbServices";
 import TableContainer from "../../Components/Common/TableContainer";
 import { Query } from "appwrite";
 import classnames from "classnames";
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faEye, faCheck, faTimes, faUndo } from '@fortawesome/free-solid-svg-icons';
 
 const WholesaleRequests = () => {
   const [requests, setRequests] = useState([]);
@@ -264,10 +266,10 @@ const WholesaleRequests = () => {
               <li className="list-inline-item">
                 <Button
                   color="link"
-                  className="text-primary"
+                  className="text-primary p-0"
                   onClick={() => handleViewDetails(request)}
                 >
-                  <i className="ri-eye-fill fs-16"></i>
+                  <FontAwesomeIcon icon={faEye} size="lg" />
                 </Button>
               </li>
               {request.status === "pending" && (
@@ -275,19 +277,19 @@ const WholesaleRequests = () => {
                   <li className="list-inline-item">
                     <Button
                       color="link"
-                      className="text-success"
+                      className="text-success p-0"
                       onClick={() => handleApprove(request)}
                     >
-                      <i className="ri-checkbox-circle-line fs-16"></i>
+                      <FontAwesomeIcon icon={faCheck} size="lg" />
                     </Button>
                   </li>
                   <li className="list-inline-item">
                     <Button
                       color="link"
-                      className="text-danger"
+                      className="text-danger p-0"
                       onClick={() => handleReject(request)}
                     >
-                      <i className="ri-close-circle-line fs-16"></i>
+                      <FontAwesomeIcon icon={faTimes} size="lg" />
                     </Button>
                   </li>
                 </>
@@ -296,10 +298,10 @@ const WholesaleRequests = () => {
                 <li className="list-inline-item">
                   <Button
                     color="link"
-                    className="text-secondary"
+                    className="text-secondary p-0"
                     onClick={() => handleApprove(request)}
                   >
-                    <i className="ri-checkbox-circle-line fs-16"></i>
+                    <FontAwesomeIcon icon={faUndo} size="lg" />
                   </Button>
                 </li>
               )}
@@ -307,10 +309,10 @@ const WholesaleRequests = () => {
                 <li className="list-inline-item">
                   <Button
                     color="link"
-                    className="text-danger"
+                    className="text-danger p-0"
                     onClick={() => handleReject(request)}
                   >
-                    <i className="ri-close-circle-line fs-16"></i>
+                    <FontAwesomeIcon icon={faTimes} size="lg" />
                   </Button>
                 </li>
               )}

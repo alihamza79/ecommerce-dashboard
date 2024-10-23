@@ -19,6 +19,7 @@ import {
   Input,
   FormFeedback,
   Button,
+  Spinner,
 } from "reactstrap";
 import moment from "moment";
 import { Link } from "react-router-dom";
@@ -27,6 +28,9 @@ import BreadCrumb from "../../../Components/Common/BreadCrumb";
 import TableContainer from "../../../Components/Common/TableContainer";
 import DeleteModal from "../../../Components/Common/DeleteModal";
 import { isEmpty } from "lodash";
+
+// Import WidgetsOrders component
+import WidgetsOrders from "./WidgetsOrders";
 
 // Formik and Yup for form handling
 import * as Yup from "yup";
@@ -42,13 +46,12 @@ import "react-toastify/dist/ReactToastify.css";
 
 import ExportCSVModal from "../../../Components/Common/ExportCSVModal";
 
-import { Query } from "appwrite"; // Ensure correct import
+import { Query } from "appwrite";
 import Flatpickr from "react-flatpickr";
 
 const EcommerceOrders = () => {
   // State Management
   const [orders, setOrders] = useState([]);
-  // Removed orderItems state as it's no longer needed
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -67,14 +70,20 @@ const EcommerceOrders = () => {
 
   const [isExportCSV, setIsExportCSV] = useState(false);
 
-  // Removed productsMap state as it's no longer needed
-
   // New State for Date Range Filtering
   const [dateRange, setDateRange] = useState([]); // Holds [fromDate, toDate]
 
   // Pagination States
   const [cursor, setCursor] = useState(null);
   const [hasMore, setHasMore] = useState(true);
+
+  // State for widget data
+  const [widgetData, setWidgetData] = useState({
+    totalEarnings: 0,
+    totalOrders: 0,
+    totalCustomers: 0,
+    myBalance: 0,
+  });
 
   // Define options for order status and payment method
   const orderStatusOptions = [
@@ -151,10 +160,8 @@ const EcommerceOrders = () => {
     }
   };
 
-  // Fetch Products - Removed as not needed
-
-  // Fetch Orders and OrderItems
-  const fetchOrdersAndItems = useCallback(async () => {
+  // Fetch Orders
+  const fetchOrders = useCallback(async () => {
     if (!hasMore) return; // No more orders to fetch
 
     setLoading(true);
@@ -175,7 +182,7 @@ const EcommerceOrders = () => {
       queries.push(Query.orderDesc("createdAt")); // Order by latest first
       queries.push(Query.limit(100)); // Set limit to 100 (Appwrite's maximum per request)
 
-      // Optionally select specific fields to optimize data transfer
+      // Include necessary fields
       queries.push(
         Query.select([
           "$id",
@@ -183,6 +190,7 @@ const EcommerceOrders = () => {
           "createdAt",
           "totalPrice",
           "paymentMethod",
+          "paymentStatus",
           "customerFirstName",
           "customerLastName",
         ])
@@ -212,17 +220,8 @@ const EcommerceOrders = () => {
 
       setOrders((prevOrders) => [...prevOrders, ...ordersWithNumber]);
       setFilteredOrders((prevOrders) => [...prevOrders, ...ordersWithNumber]);
-
-      // If there are no orders, clear orderItems
-      if (isEmpty(fetchedOrders)) {
-        // No orderItems to set
-        return;
-      }
-
-      // Fetch OrderItems for the fetched orders - Removed as not needed
-      // Removed the entire block fetching order items
     } catch (err) {
-      console.error("Fetch Orders and Items Error:", err);
+      console.error("Fetch Orders Error:", err);
       const errorMessage =
         (err.response && err.response.data && err.response.data.message) ||
         err.message ||
@@ -248,13 +247,50 @@ const EcommerceOrders = () => {
     }
   };
 
-  // Use useEffect to fetch Products once on mount - Removed as not needed
-  // Removed useEffect for fetchProducts
-
-  // Use useEffect to fetch Orders and OrderItems when dateRange or cursor changes
+  // Use useEffect to fetch Orders when dateRange or cursor changes
   useEffect(() => {
-    fetchOrdersAndItems();
-  }, [fetchOrdersAndItems]);
+    fetchOrders();
+  }, [fetchOrders]);
+
+  // Compute Widget Data whenever filteredOrders changes
+  useEffect(() => {
+    const computeWidgetData = async () => {
+      const totalEarnings = filteredOrders
+        .filter((order) => order.orderStatus !== "Returns")
+        .reduce((acc, order) => acc + (order.totalPrice || 0), 0);
+
+      const totalOrders = filteredOrders.length;
+
+      // Get unique customer names
+      const customerNames = new Set(
+        filteredOrders.map(
+          (order) =>
+            `${order.customerFirstName || ""} ${
+              order.customerLastName || ""
+            }`.trim()
+        )
+      );
+      const totalCustomers = customerNames.size;
+
+      const myBalance = filteredOrders
+        .filter(
+          (order) =>
+            order.orderStatus !== "Returns" &&
+            order.orderStatus !== "Pickups" &&
+            order.paymentStatus !== "cashOnDelivery"
+        )
+        .reduce((acc, order) => acc + (order.totalPrice || 0), 0);
+
+      setWidgetData({
+        totalEarnings,
+        totalOrders,
+        totalCustomers,
+        myBalance,
+      });
+    };
+
+    computeWidgetData();
+  }, [filteredOrders]);
 
   // Memoized function to filter orders based on activeTab
   const applyTabFilter = useCallback(() => {
@@ -347,7 +383,6 @@ const EcommerceOrders = () => {
     initialValues:
       isEdit && selectedOrder
         ? {
-            // Only include deliveryStatus in edit mode
             status: selectedOrder.orderStatus,
           }
         : {},
@@ -427,7 +462,7 @@ const EcommerceOrders = () => {
           />
         ),
         id: "#",
-        accessorKey: "$id", // Using $id as the accessor key for checkboxes
+        accessorKey: "$id",
         enableColumnFilter: false,
         enableSorting: false,
       },
@@ -438,10 +473,9 @@ const EcommerceOrders = () => {
         enableColumnFilter: false,
         enableSorting: false,
       },
-      // Added "Order Number" Column
       {
         header: "Order Number",
-        accessorKey: "orderNumber", // Using orderNumber from data
+        accessorKey: "orderNumber",
         enableColumnFilter: false,
         cell: (cell) => {
           const orderNumber = cell.getValue();
@@ -450,7 +484,7 @@ const EcommerceOrders = () => {
       },
       {
         header: "Customer",
-        accessorKey: "customerFirstName", // Using customerFirstName and customerLastName
+        accessorKey: "customerFirstName",
         enableColumnFilter: false,
         cell: (cell) => {
           const firstName = cell.row.original.customerFirstName || "";
@@ -458,19 +492,6 @@ const EcommerceOrders = () => {
           return `${firstName} ${lastName}`.trim() || "N/A";
         },
       },
-      // Removed "Product" Column
-      /*
-      {
-        header: "Product",
-        accessorKey: "$id", // Using $id to fetch the first product
-        enableColumnFilter: false,
-        cell: (cell) => {
-          const orderId = cell.getValue();
-          const items = orderItems[orderId] || [];
-          return items.length > 0 ? items[0].productName : "N/A";
-        },
-      },
-      */
       {
         header: "Order Date",
         accessorKey: "createdAt",
@@ -482,7 +503,7 @@ const EcommerceOrders = () => {
         header: "Amount",
         accessorKey: "totalPrice",
         enableColumnFilter: false,
-        cell: (cell) => `$${parseFloat(cell.getValue()).toFixed(2)}`,
+        cell: (cell) => `£${parseFloat(cell.getValue()).toFixed(2)}`,
       },
       {
         header: "Payment Method",
@@ -547,20 +568,7 @@ const EcommerceOrders = () => {
       },
     ],
     [selectedCheckBoxDelete, filteredOrders.length]
-    // Removed orderItems from dependencies
   );
-
-  // Ensure badges are styled correctly based on status
-  const getStatusBadge = (status) => {
-    const statusClasses = {
-      Pending: "badge bg-warning-subtle text-warning",
-      Inprogress: "badge bg-secondary-subtle text-secondary",
-      Pickups: "badge bg-info-subtle text-info",
-      Returns: "badge bg-primary-subtle text-primary",
-      Delivered: "badge bg-success-subtle text-success",
-    };
-    return statusClasses[status] || "badge bg-light text-dark";
-  };
 
   document.title = "Orders | Velzon - React Admin & Dashboard Template";
 
@@ -572,17 +580,16 @@ const EcommerceOrders = () => {
         onCloseClick={() => setIsExportCSV(false)}
         data={filteredOrders.map((order, index) => ({
           no: index + 1,
-          orderNumber: order.orderNumber, // Included Order Number
+          orderNumber: order.orderNumber,
           customer: `${order.customerFirstName || ""} ${
             order.customerLastName || ""
           }`.trim() || "N/A",
-          // Removed 'product' field from CSV export
           orderDate: moment(order.createdAt).format("DD MMM YYYY, hh:mm A"),
-          amount: `$${parseFloat(order.totalPrice).toFixed(2)}`,
+          amount: `£${parseFloat(order.totalPrice).toFixed(2)}`,
           paymentMethod: order.paymentMethod,
           deliveryStatus: order.orderStatus,
         }))}
-        filename={`Orders_${moment().format("YYYYMMDD_HHmmss")}.csv`} // Dynamic filename with timestamp
+        filename={`Orders_${moment().format("YYYYMMDD_HHmmss")}.csv`}
       />
 
       {/* Delete Single Order Modal */}
@@ -606,6 +613,16 @@ const EcommerceOrders = () => {
       <Container fluid>
         {/* Breadcrumb */}
         <BreadCrumb title="Orders" pageTitle="Ecommerce" />
+
+        {/* Widgets */}
+        <Row>
+          <WidgetsOrders
+            totalEarnings={widgetData.totalEarnings}
+            totalOrders={widgetData.totalOrders}
+            totalCustomers={widgetData.totalCustomers}
+            myBalance={widgetData.myBalance}
+          />
+        </Row>
 
         <Row>
           <Col lg={12}>
@@ -652,7 +669,6 @@ const EcommerceOrders = () => {
                           setFilteredOrders([]);
                           setCursor(null);
                           setHasMore(true);
-                          // fetchOrdersAndItems will be called via useEffect
                         }}
                         className="me-2"
                       >
@@ -707,7 +723,8 @@ const EcommerceOrders = () => {
                         onClick={() => handleTabClick("2", "Delivered")}
                         href="#"
                       >
-                        <i className="ri-checkbox-circle-line me-1 align-bottom"></i> Delivered
+                        <i className="ri-checkbox-circle-line me-1 align-bottom"></i>{" "}
+                        Delivered
                       </NavLink>
                     </NavItem>
                     <NavItem>
@@ -719,10 +736,7 @@ const EcommerceOrders = () => {
                         onClick={() => handleTabClick("3", "Pickups")}
                         href="#"
                       >
-                        <i className="ri-truck-line me-1 align-bottom"></i> Pickups{" "}
-                        <span className="badge bg-danger align-middle ms-1">
-                          {/* Optional dynamic count */}
-                        </span>
+                        <i className="ri-truck-line me-1 align-bottom"></i> Pickups
                       </NavLink>
                     </NavItem>
                     <NavItem>
@@ -734,15 +748,17 @@ const EcommerceOrders = () => {
                         onClick={() => handleTabClick("4", "Returns")}
                         href="#"
                       >
-                        <i className="ri-arrow-left-right-fill me-1 align-bottom"></i> Returns
+                        <i className="ri-arrow-left-right-fill me-1 align-bottom"></i>{" "}
+                        Returns
                       </NavLink>
                     </NavItem>
-                    {/* Removed "Cancelled" Tab */}
                   </Nav>
 
                   {/* Table or Loader or Error */}
                   {loading && orders.length === 0 ? (
-                    <Loader />
+                    <div className="d-flex justify-content-center mt-5">
+                      <Spinner color="primary" />
+                    </div>
                   ) : error ? (
                     <div className="alert alert-danger mt-3" role="alert">
                       {error}
@@ -765,15 +781,19 @@ const EcommerceOrders = () => {
                         handleOrderClick={() => {}}
                         isOrderFilter={true}
                         SearchPlaceholder="Search for order number or customer..."
-                        globalFilterFn="fuzzy" // Ensure 'fuzzy' is used for flexible searching
-                        filterFields={["orderNumber", "customerFirstName", "customerLastName"]} // Specify fields to filter on
+                        globalFilterFn="fuzzy"
+                        filterFields={[
+                          "orderNumber",
+                          "customerFirstName",
+                          "customerLastName",
+                        ]}
                       />
                       {/* Load More Button for Pagination */}
                       {hasMore && (
                         <div className="d-flex justify-content-center mt-3">
                           <Button
                             color="primary"
-                            onClick={fetchOrdersAndItems}
+                            onClick={fetchOrders}
                             disabled={loading}
                           >
                             {loading ? "Loading..." : "Load More"}
@@ -817,7 +837,7 @@ const EcommerceOrders = () => {
                           >
                             <option value="">Select Delivery Status</option>
                             {orderStatusOptions
-                              .filter((option) => option.value !== "All") // Exclude "All" in edit mode
+                              .filter((option) => option.value !== "All")
                               .map((option, idx) => (
                                 <option value={option.value} key={idx}>
                                   {option.label}
@@ -830,7 +850,7 @@ const EcommerceOrders = () => {
                             </FormFeedback>
                           )}
                         </div>
-                      ) : null /* Removed Add Order Fields */}
+                      ) : null}
                     </ModalBody>
                     <div className="modal-footer">
                       <div className="hstack gap-2 justify-content-end">
@@ -858,18 +878,6 @@ const EcommerceOrders = () => {
       </Container>
     </div>
   );
-};
-
-// Helper function to get status color
-const getStatusColor = (status) => {
-  const statusColors = {
-    Pending: "warning",
-    Inprogress: "secondary",
-    Pickups: "info",
-    Returns: "primary",
-    Delivered: "success",
-  };
-  return statusColors[status] || "light";
 };
 
 export default EcommerceOrders;

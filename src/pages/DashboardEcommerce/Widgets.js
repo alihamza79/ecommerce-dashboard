@@ -17,6 +17,35 @@ const Widgets = () => {
     const [myBalance, setMyBalance] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    // Function to fetch all documents with pagination
+    const fetchAllDocuments = async (collection, queries = []) => {
+        const limit = 100; // Maximum per request in Appwrite
+        let documents = [];
+        let cursor = null;
+        let hasMore = true;
+
+        while (hasMore) {
+            const currentQueries = [...queries, Query.limit(limit)];
+            if (cursor) {
+                currentQueries.push(Query.cursorAfter(cursor));
+            }
+
+            try {
+                const response = await collection.list(currentQueries);
+                documents = documents.concat(response.documents);
+                if (response.documents.length < limit) {
+                    hasMore = false;
+                } else {
+                    cursor = response.documents[response.documents.length - 1].$id;
+                }
+            } catch (error) {
+                throw error;
+            }
+        }
+
+        return documents;
+    };
+
     // Fetch data from Appwrite
     useEffect(() => {
         const fetchData = async () => {
@@ -26,16 +55,17 @@ const Widgets = () => {
                 const earningsQuery = [
                     Query.notEqual('orderStatus', 'Returns')
                 ];
-                const earningsResponse = await db.Orders.list(earningsQuery);
-                const earnings = earningsResponse.documents.reduce((acc, order) => acc + (order.totalPrice || 0), 0);
+                const earningsDocuments = await fetchAllDocuments(db.Orders, earningsQuery);
+                const earnings = earningsDocuments.reduce((acc, order) => acc + (order.totalPrice || 0), 0);
                 setTotalEarnings(earnings);
 
                 // 2. Total Orders: Count of Orders
-                const ordersResponse = await db.Orders.list();
+                // Using a single request as Appwrite provides the total count
+                const ordersResponse = await db.Orders.list([Query.limit(1)]);
                 setTotalOrders(ordersResponse.total);
 
                 // 3. Total Customers: Count of Users
-                const customersResponse = await db.Users.list();
+                const customersResponse = await db.Users.list([Query.limit(1)]);
                 setTotalCustomers(customersResponse.total);
 
                 // 4. My Balance: Sum of totalPrice from Orders where orderStatus != "Returns" and "Pickups" and paymentStatus != "cashOnDelivery"
@@ -44,8 +74,8 @@ const Widgets = () => {
                     Query.notEqual('orderStatus', 'Pickups'),
                     Query.notEqual('paymentStatus', 'cashOnDelivery')
                 ];
-                const balanceResponse = await db.Orders.list(balanceQuery);
-                const balance = balanceResponse.documents.reduce((acc, order) => acc + (order.totalPrice || 0), 0);
+                const balanceDocuments = await fetchAllDocuments(db.Orders, balanceQuery);
+                const balance = balanceDocuments.reduce((acc, order) => acc + (order.totalPrice || 0), 0);
                 setMyBalance(balance);
             } catch (error) {
                 console.error("Error fetching dashboard data:", error);
@@ -65,7 +95,7 @@ const Widgets = () => {
             label: "Total Earnings",
             link: "View net earnings",
             bgcolor: "success",
-            icon: "bx bx-dollar-circle",
+            icon: "bx bx-pound",
             decimals: 2,
             prefix: "£",
             suffix: "",
@@ -87,7 +117,6 @@ const Widgets = () => {
         {
             id: 3,
             label: "Customers",
-            link: "See details",
             bgcolor: "warning",
             icon: "bx bx-user-circle",
             decimals: 0,
@@ -99,7 +128,6 @@ const Widgets = () => {
         {
             id: 4,
             label: "My Balance",
-            link: "Withdraw money",
             bgcolor: "primary",
             icon: "bx bx-wallet",
             decimals: 2,
@@ -163,6 +191,7 @@ const Widgets = () => {
             <ToastContainer closeButton={false} limit={1} />
         </React.Fragment>
     );
+
 };
 
 export default Widgets;

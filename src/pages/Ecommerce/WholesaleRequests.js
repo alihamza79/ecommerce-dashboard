@@ -1,6 +1,6 @@
 // src/pages/WholesaleRequests.js
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   Card,
   CardBody,
@@ -18,14 +18,15 @@ import {
   Nav,
   NavItem,
   NavLink,
-} from "reactstrap";
-import { toast, ToastContainer } from "react-toastify";
-import db from "../../appwrite/Services/dbServices";
-import TableContainer from "../../Components/Common/TableContainer";
-import { Query } from "appwrite";
-import classnames from "classnames";
+} from 'reactstrap';
+import { toast, ToastContainer } from 'react-toastify';
+import storageServices from '../../appwrite/Services/storageServices';
+import db from '../../appwrite/Services/dbServices';
+import { Query } from 'appwrite';
+import classnames from 'classnames';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faCheck, faTimes, faUndo } from '@fortawesome/free-solid-svg-icons';
+import TableContainer from '../../Components/Common/TableContainer';
 
 const WholesaleRequests = () => {
   const [requests, setRequests] = useState([]);
@@ -33,12 +34,47 @@ const WholesaleRequests = () => {
   const [loading, setLoading] = useState(true);
   const [rejectModal, setRejectModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
-  const [rejectReason, setRejectReason] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState("1");
+  const [rejectReason, setRejectReason] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState('1');
 
   const [viewModal, setViewModal] = useState(false);
   const [selectedRequestForView, setSelectedRequestForView] = useState(null);
+  const [attachments, setAttachments] = useState([]);
+
+  // AttachmentPreview Component
+  const AttachmentPreview = ({ url, alt }) => {
+    const [isImage, setIsImage] = useState(true);
+
+    return (
+      <div>
+        {isImage ? (
+          <>
+            <img
+              src={url}
+              alt={alt}
+              style={{ maxWidth: '100px', maxHeight: '100px' }}
+              onError={() => setIsImage(false)}
+            />
+            <div>
+              <a href={url} target="_blank" rel="noopener noreferrer">
+                Open in new tab
+              </a>
+            </div>
+          </>
+        ) : (
+          <>
+            <div>Preview not available</div>
+            <div>
+              <a href={url} target="_blank" rel="noopener noreferrer">
+                Open in new tab
+              </a>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
 
   // Fetch wholesale requests and user data
   const fetchWholesaleRequests = async () => {
@@ -54,7 +90,7 @@ const WholesaleRequests = () => {
 
       // Fetch user details for each userId in bulk
       const userListResponse = await db.Users.list(
-        [Query.equal("userId", userIds)],
+        [Query.equal('userId', userIds)],
         100
       );
 
@@ -68,14 +104,14 @@ const WholesaleRequests = () => {
       userIds.forEach((userId) => {
         if (!usersMap[userId]) {
           console.error(`User with userId ${userId} not found.`);
-          usersMap[userId] = { name: "Unknown", email: "" };
+          usersMap[userId] = { name: 'Unknown', email: '' };
         }
       });
 
       setUsersData(usersMap);
     } catch (error) {
-      console.error("Error fetching wholesale requests:", error);
-      toast.error("Failed to fetch wholesale requests.");
+      console.error('Error fetching wholesale requests:', error);
+      toast.error('Failed to fetch wholesale requests.');
     } finally {
       setLoading(false);
     }
@@ -90,13 +126,13 @@ const WholesaleRequests = () => {
     try {
       // Update the request status to 'approved'
       await db.WholesaleAccountRequests.update(request.$id, {
-        status: "approved",
-        rejectionReason: "", // Clear rejection reason
+        status: 'approved',
+        rejectionReason: '', // Clear rejection reason
       });
 
       // Update the user's isWholesaleApproved property to true
       const userId = request.userId;
-      const userList = await db.Users.list([Query.equal("userId", userId)]);
+      const userList = await db.Users.list([Query.equal('userId', userId)]);
       if (userList.total > 0) {
         const userDocId = userList.documents[0].$id;
         await db.Users.update(userDocId, { isWholesaleApproved: true });
@@ -104,11 +140,11 @@ const WholesaleRequests = () => {
         console.error(`User with userId ${userId} not found.`);
       }
 
-      toast.success("Request approved successfully.");
+      toast.success('Request approved successfully.');
       fetchWholesaleRequests();
     } catch (error) {
-      console.error("Error approving request:", error);
-      toast.error("Failed to approve request.");
+      console.error('Error approving request:', error);
+      toast.error('Failed to approve request.');
     }
   };
 
@@ -123,13 +159,13 @@ const WholesaleRequests = () => {
     try {
       // Update the request status and set the rejection reason
       await db.WholesaleAccountRequests.update(selectedRequest.$id, {
-        status: "rejected",
-        rejectionReason: rejectReason || "",
+        status: 'rejected',
+        rejectionReason: rejectReason || '',
       });
 
       // Update the user's isWholesaleApproved property to false
       const userId = selectedRequest.userId;
-      const userList = await db.Users.list([Query.equal("userId", userId)]);
+      const userList = await db.Users.list([Query.equal('userId', userId)]);
       if (userList.total > 0) {
         const userDocId = userList.documents[0].$id;
         await db.Users.update(userDocId, { isWholesaleApproved: false });
@@ -137,13 +173,13 @@ const WholesaleRequests = () => {
         console.error(`User with userId ${userId} not found.`);
       }
 
-      toast.success("Request rejected successfully.");
+      toast.success('Request rejected successfully.');
       setRejectModal(false);
-      setRejectReason("");
+      setRejectReason('');
       fetchWholesaleRequests();
     } catch (error) {
-      console.error("Error rejecting request:", error);
-      toast.error("Failed to reject request.");
+      console.error('Error rejecting request:', error);
+      toast.error('Failed to reject request.');
     }
   };
 
@@ -153,22 +189,59 @@ const WholesaleRequests = () => {
     setViewModal(true);
   };
 
+  // Parse attachments and fetch file URLs
+  const parseAttachments = async (attachmentsArray) => {
+    if (!attachmentsArray || attachmentsArray.length === 0) return [];
+
+    const files = await Promise.all(
+      attachmentsArray.map(async (fileId, index) => {
+        try {
+          const fileViewUrl = storageServices['images'].getFileView(fileId);
+          let key = '';
+          if (index === 0) key = 'Photo ID';
+          else if (index === 1) key = 'Utility Bill';
+          else key = `Other Document ${index - 1}`;
+
+          return { key, url: fileViewUrl.href };
+        } catch (error) {
+          console.error(`Error getting file ${fileId}:`, error);
+          return { key: `Attachment ${index + 1}`, url: '' };
+        }
+      })
+    );
+
+    return files;
+  };
+
+  useEffect(() => {
+    const fetchAttachments = async () => {
+      if (selectedRequestForView && selectedRequestForView.attachments) {
+        const files = await parseAttachments(selectedRequestForView.attachments);
+        setAttachments(files);
+      } else {
+        setAttachments([]);
+      }
+    };
+
+    fetchAttachments();
+  }, [selectedRequestForView]);
+
   // Filter requests based on the active tab and search term
   const filteredRequests = useMemo(() => {
     let filtered = requests;
 
     switch (activeTab) {
-      case "1":
+      case '1':
         // Pending
-        filtered = requests.filter((request) => request.status === "pending");
+        filtered = requests.filter((request) => request.status === 'pending');
         break;
-      case "2":
+      case '2':
         // Approved
-        filtered = requests.filter((request) => request.status === "approved");
+        filtered = requests.filter((request) => request.status === 'approved');
         break;
-      case "3":
+      case '3':
         // Rejected
-        filtered = requests.filter((request) => request.status === "rejected");
+        filtered = requests.filter((request) => request.status === 'rejected');
         break;
       default:
         filtered = requests;
@@ -193,16 +266,16 @@ const WholesaleRequests = () => {
   const columns = useMemo(
     () => [
       {
-        header: "No.",
+        header: 'No.',
         cell: (cell) => cell.row.index + 1,
-        id: "serial",
+        id: 'serial',
         enableColumnFilter: false,
         enableSorting: false,
       },
       {
-        header: "User",
-        id: "user",
-        accessorKey: "userId",
+        header: 'User',
+        id: 'user',
+        accessorKey: 'userId',
         disableFilters: true,
         cell: ({ row }) => {
           const userId = row.original.userId;
@@ -213,51 +286,47 @@ const WholesaleRequests = () => {
               <div>{user.email}</div>
             </div>
           ) : (
-            "Loading..."
+            'Loading...'
           );
         },
       },
       {
-        header: "Reason",
-        accessorKey: "reason",
+        header: 'First Name',
+        accessorKey: 'firstName',
         disableFilters: true,
       },
       {
-        header: "Rejection Reason",
-        accessorKey: "rejectionReason",
+        header: 'Last Name',
+        accessorKey: 'lastName',
         disableFilters: true,
-        cell: ({ cell }) => {
-          const value = cell.getValue();
-          return value || "-";
-        },
       },
       {
-        header: "Status",
-        accessorKey: "status",
-        id: "status",
+        header: 'Status',
+        accessorKey: 'status',
+        id: 'status',
         disableFilters: true,
         cell: ({ cell }) => {
           const status = cell.getValue();
-          let badgeClass = "";
+          let badgeClass = '';
           switch (status) {
-            case "pending":
-              badgeClass = "badge bg-warning-subtle text-warning";
+            case 'pending':
+              badgeClass = 'badge bg-warning-subtle text-warning';
               break;
-            case "approved":
-              badgeClass = "badge bg-success-subtle text-success";
+            case 'approved':
+              badgeClass = 'badge bg-success-subtle text-success';
               break;
-            case "rejected":
-              badgeClass = "badge bg-danger-subtle text-danger";
+            case 'rejected':
+              badgeClass = 'badge bg-danger-subtle text-danger';
               break;
             default:
-              badgeClass = "badge bg-secondary-subtle text-secondary";
+              badgeClass = 'badge bg-secondary-subtle text-secondary';
           }
           return <span className={`${badgeClass}`}>{status}</span>;
         },
       },
       {
-        header: "Actions",
-        id: "actions",
+        header: 'Actions',
+        id: 'actions',
         disableFilters: true,
         cell: ({ row }) => {
           const request = row.original;
@@ -272,7 +341,7 @@ const WholesaleRequests = () => {
                   <FontAwesomeIcon icon={faEye} size="lg" />
                 </Button>
               </li>
-              {request.status === "pending" && (
+              {request.status === 'pending' && (
                 <>
                   <li className="list-inline-item">
                     <Button
@@ -294,7 +363,7 @@ const WholesaleRequests = () => {
                   </li>
                 </>
               )}
-              {request.status === "rejected" && (
+              {request.status === 'rejected' && (
                 <li className="list-inline-item">
                   <Button
                     color="link"
@@ -305,7 +374,7 @@ const WholesaleRequests = () => {
                   </Button>
                 </li>
               )}
-              {request.status === "approved" && (
+              {request.status === 'approved' && (
                 <li className="list-inline-item">
                   <Button
                     color="link"
@@ -357,10 +426,10 @@ const WholesaleRequests = () => {
                   <NavItem>
                     <NavLink
                       className={classnames(
-                        { active: activeTab === "1" },
-                        "fw-semibold"
+                        { active: activeTab === '1' },
+                        'fw-semibold'
                       )}
-                      onClick={() => handleTabClick("1")}
+                      onClick={() => handleTabClick('1')}
                       href="#"
                     >
                       <i className="ri-time-line me-1 align-bottom"></i> Pending
@@ -369,10 +438,10 @@ const WholesaleRequests = () => {
                   <NavItem>
                     <NavLink
                       className={classnames(
-                        { active: activeTab === "2" },
-                        "fw-semibold"
+                        { active: activeTab === '2' },
+                        'fw-semibold'
                       )}
-                      onClick={() => handleTabClick("2")}
+                      onClick={() => handleTabClick('2')}
                       href="#"
                     >
                       <i className="ri-check-line me-1 align-bottom"></i> Approved
@@ -381,10 +450,10 @@ const WholesaleRequests = () => {
                   <NavItem>
                     <NavLink
                       className={classnames(
-                        { active: activeTab === "3" },
-                        "fw-semibold"
+                        { active: activeTab === '3' },
+                        'fw-semibold'
                       )}
-                      onClick={() => handleTabClick("3")}
+                      onClick={() => handleTabClick('3')}
                       href="#"
                     >
                       <i className="ri-close-line me-1 align-bottom"></i> Rejected
@@ -397,14 +466,8 @@ const WholesaleRequests = () => {
                   // Loading Indicator
                   <div className="py-4 text-center">
                     <div>
-                      <lord-icon
-                        src="https://cdn.lordicon.com/msoeawqm.json"
-                        trigger="loop"
-                        colors="primary:#405189,secondary:#0ab39c"
-                        style={{ width: "72px", height: "72px" }}
-                      ></lord-icon>
+                      <div>Loading...</div>
                     </div>
-
                     <div className="mt-4">
                       <h5>Loading data!</h5>
                     </div>
@@ -467,6 +530,7 @@ const WholesaleRequests = () => {
         isOpen={viewModal}
         toggle={() => setViewModal(!viewModal)}
         centered
+        size="lg"
       >
         <ModalHeader toggle={() => setViewModal(!viewModal)}>
           Request Details
@@ -474,36 +538,120 @@ const WholesaleRequests = () => {
         <ModalBody>
           {selectedRequestForView ? (
             <Form>
-              <Label for="userName">User Name</Label>
-              <Input
-                type="text"
-                id="userName"
-                value={
-                  usersData[selectedRequestForView.userId]?.name || "Unknown"
-                }
-                readOnly
-              />
-              <Label for="userEmail" className="mt-3">
-                User Email
-              </Label>
-              <Input
-                type="text"
-                id="userEmail"
-                value={
-                  usersData[selectedRequestForView.userId]?.email || ""
-                }
-                readOnly
-              />
-              <Label for="reason" className="mt-3">
-                Reason
-              </Label>
-              <Input
-                type="textarea"
-                id="reason"
-                value={selectedRequestForView.reason}
-                readOnly
-              />
-              {/* Add more fields here as needed in the future */}
+              <Row>
+                <Col md={6}>
+                  <Label>First Name</Label>
+                  <Input
+                    type="text"
+                    value={selectedRequestForView.firstName || ''}
+                    readOnly
+                  />
+                </Col>
+                <Col md={6}>
+                  <Label>Last Name</Label>
+                  <Input
+                    type="text"
+                    value={selectedRequestForView.lastName || ''}
+                    readOnly
+                  />
+                </Col>
+              </Row>
+              <Row className="mt-3">
+                <Col md={12}>
+                  <Label>Address</Label>
+                  <Input
+                    type="textarea"
+                    value={selectedRequestForView.address || ''}
+                    readOnly
+                  />
+                </Col>
+              </Row>
+              {/* Display other fields as needed */}
+              {/* For example: */}
+              <Row className="mt-3">
+                <Col md={6}>
+                  <Label>Mobile Number</Label>
+                  <Input
+                    type="text"
+                    value={selectedRequestForView.mobileNumber || ''}
+                    readOnly
+                  />
+                </Col>
+                <Col md={6}>
+                  <Label>Account Type</Label>
+                  <Input
+                    type="text"
+                    value={selectedRequestForView.accountType || ''}
+                    readOnly
+                  />
+                </Col>
+              </Row>
+              {/* Display business details if accountType is 'business' */}
+              {selectedRequestForView.accountType === 'business' && (
+                <>
+                  <Row className="mt-3">
+                    <Col md={6}>
+                      <Label>Trading Name</Label>
+                      <Input
+                        type="text"
+                        value={selectedRequestForView.tradingName || ''}
+                        readOnly
+                      />
+                    </Col>
+                    <Col md={6}>
+                      <Label>Company Registered Name</Label>
+                      <Input
+                        type="text"
+                        value={selectedRequestForView.companyRegisteredName || ''}
+                        readOnly
+                      />
+                    </Col>
+                  </Row>
+                  <Row className="mt-3">
+                    <Col md={6}>
+                      <Label>Company Registration Number</Label>
+                      <Input
+                        type="text"
+                        value={selectedRequestForView.companyRegistrationNumber || ''}
+                        readOnly
+                      />
+                    </Col>
+                    <Col md={6}>
+                      <Label>Position in Business</Label>
+                      <Input
+                        type="text"
+                        value={selectedRequestForView.positionInBusiness || ''}
+                        readOnly
+                      />
+                    </Col>
+                  </Row>
+                  <Row className="mt-3">
+                    <Col md={12}>
+                      <Label>Business Description</Label>
+                      <Input
+                        type="textarea"
+                        value={selectedRequestForView.businessDescription || ''}
+                        readOnly
+                      />
+                    </Col>
+                  </Row>
+                  {/* Additional business fields */}
+                </>
+              )}
+              {/* Display attachments */}
+              <Label className="mt-3">Attachments</Label>
+              {attachments.length > 0 ? (
+                <div>
+                  {attachments.map((attachment, index) => (
+                    <div key={index} className="mb-3">
+                      <Label>{attachment.key}</Label>
+                      <AttachmentPreview url={attachment.url} alt={attachment.key} />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p>No attachments</p>
+              )}
             </Form>
           ) : (
             <div>Loading...</div>

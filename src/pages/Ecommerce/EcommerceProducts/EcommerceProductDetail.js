@@ -469,6 +469,12 @@ const EcommerceProductDetail = () => {
                                         : "No tags available."}
                                     </td>
                                   </tr>
+                                  {product.isWholesaleProduct && (
+                                    <tr>
+                                      <th scope="row">Minimum Purchase Quantity</th>
+                                      <td>{product.minimumPurchaseQuantity || 'N/A'}</td>
+                                    </tr>
+                                  )}
                                 </tbody>
                               </table>
                             </div>

@@ -152,6 +152,7 @@ const EcommerceEditProduct = () => {
       taxExclusivePrice: productData?.taxExclusivePrice || "", // New field
       tax: productData?.tax || "0", // New field
       bannerLabel: productData?.bannerLabel || "", // New field
+      minimumPurchaseQuantity: productData?.minimumPurchaseQuantity || "",
     },
     validationSchema: Yup.object({
       name: Yup.string().required("Please enter a product title"),
@@ -201,6 +202,15 @@ const EcommerceEditProduct = () => {
         .max(100, "Tax cannot exceed 100%")
         .required("Please enter the tax percentage"),
       bannerLabel: Yup.string(),
+      minimumPurchaseQuantity: Yup.number()
+        .when('productType', {
+          is: 'wholesale',
+          then: () => Yup.number()
+            .required('Minimum Purchase Quantity is required for wholesale products')
+            .positive('Minimum Purchase Quantity must be a positive number')
+            .integer('Minimum Purchase Quantity must be an integer'),
+          otherwise: () => Yup.number().nullable()
+        }),
     }),
     onSubmit: async (values) => {
       // Reset errors
@@ -260,6 +270,7 @@ const EcommerceEditProduct = () => {
           taxExclusivePrice: parseFloat(values.taxExclusivePrice),
           tax: parseFloat(values.tax),
           bannerLabel: values.bannerLabel,
+          minimumPurchaseQuantity: values.productType === 'wholesale' ? parseInt(values.minimumPurchaseQuantity, 10) : null,
         };
 
         // Update the product in the Appwrite database
@@ -604,6 +615,7 @@ const EcommerceEditProduct = () => {
                           value={formik.values.price}
                           onBlur={formik.handleBlur}
                           onChange={formik.handleChange}
+                          disabled
                           invalid={
                             formik.errors.price && formik.touched.price
                               ? true
@@ -707,6 +719,26 @@ const EcommerceEditProduct = () => {
                       </div>
                     </Col>
                   </Row>
+                  {formik.values.productType === 'wholesale' && (
+                    <Col lg={6}>
+                      <div className="mb-3">
+                        <Label className="form-label">Minimum Purchase Quantity</Label>
+                        <Input
+                          type="number"
+                          className="form-control"
+                          name="minimumPurchaseQuantity"
+                          placeholder="Enter minimum purchase quantity"
+                          value={formik.values.minimumPurchaseQuantity}
+                          onChange={formik.handleChange}
+                          onBlur={formik.handleBlur}
+                          invalid={formik.touched.minimumPurchaseQuantity && formik.errors.minimumPurchaseQuantity}
+                        />
+                        {formik.touched.minimumPurchaseQuantity && formik.errors.minimumPurchaseQuantity && (
+                          <FormFeedback type="invalid">{formik.errors.minimumPurchaseQuantity}</FormFeedback>
+                        )}
+                      </div>
+                    </Col>
+                  )}
                 </CardBody>
               </Card>
 
